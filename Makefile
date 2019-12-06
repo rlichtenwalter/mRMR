@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ##
 
-CC := /usr/local/bin/g++
+CC := g++
 COMMON_FLAGS := -std=c++14 -Wall -Wextra -Werror -Wno-unused-local-typedefs -pedantic
 
 DEBUG_FLAGS := -Og -g -fsanitize=address -fno-omit-frame-pointer -fmax-errors=1

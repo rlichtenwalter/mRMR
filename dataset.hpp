@@ -25,11 +25,15 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <locale>
 #include <valarray>
 #include <vector>
 #include "attribute_information.hpp"
+#include "delimiter_ctype.hpp"
 #include "matrix.hpp"
 #include "typedef.hpp"
+
+extern char DELIMITER;
 
 template <typename T>
 class dataset {
@@ -60,9 +64,12 @@ dataset<T>::dataset() : _data( 0, 0 ) {
 
 template <typename T>
 dataset<T>::dataset( std::istream & is, discretization_method dm ) {
+	// the pointer below is managed via the interface
+	is.imbue( std::locale( is.getloc(), new delimiter_ctype( DELIMITER ) ) );
+
 	// read header line with attribute names
 	std::string name;
-	while( is.peek() != '\n' ) {
+	while( is.good() && is.peek() != '\n' ) {
 		is >> name;
 		_names.push_back( name );
 	}
@@ -171,7 +178,7 @@ std::ostream & operator<<( std::ostream & os, dataset<T> const & data ) {
 	if( data.num_attributes() > 0 ) {
 		os << data._names.at( 0 );
 		for( std::size_t i = 1; i < data.num_attributes(); ++i ) {
-			os << '\t' << data._names.at( i );
+			os << DELIMITER << data._names.at( i );
 		}
 		os << '\n';
 		os << data._data.transpose();

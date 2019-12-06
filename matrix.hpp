@@ -27,6 +27,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <iterator>
 #include <valarray>
 
+extern char DELIMITER;
+
 template <typename T>
 class matrix {
 	template <typename U> friend bool operator==( matrix<U> const & lhs, matrix<U> const & rhs );
@@ -111,10 +113,10 @@ template <typename T>
 std::ostream & operator<<( std::ostream & os, matrix<T> const & m ) {
 	for( std::size_t row = 0; row < m.num_rows(); ++row ) {
 		if( std::is_same<T,unsigned char>::value ) {
-			std::copy( &m._data[ row * m.num_columns() ], &m._data[ (row + 1) * m.num_columns() - 1 ], std::ostream_iterator<unsigned int>( os, "\t" ) );
+			std::copy( &m._data[ row * m.num_columns() ], &m._data[ (row + 1) * m.num_columns() - 1 ], std::ostream_iterator<unsigned int>( os, std::string( 1, DELIMITER ).c_str() ) );
 			os << static_cast<unsigned int>( m._data[ (row + 1) * m.num_columns() - 1 ] );
 		} else {
-			std::copy( &m._data[ row * m.num_columns() ], &m._data[ (row + 1) * m.num_columns() - 1 ], std::ostream_iterator<T>( os, "\t" ) );
+			std::copy( &m._data[ row * m.num_columns() ], &m._data[ (row + 1) * m.num_columns() - 1 ], std::ostream_iterator<T>( os, std::string( 1, DELIMITER ).c_str() ) );
 			os << m._data[ (row + 1) * m.num_columns() - 1 ];
 		}
 		os << '\n';
@@ -151,7 +153,7 @@ std::istream & operator>>( std::istream & is, matrix<T> & m ) {
 		}
 		m( m.num_rows() - 1, column_num ) = d;
 		char c = is.get();
-		if( c == '\t' ) {
+		if( c == DELIMITER ) {
 			++column_num;
 		} else if( c == '\n' ) {
 			if( column_num + 1 == m.num_columns() ) {

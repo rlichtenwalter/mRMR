@@ -15,3 +15,15 @@ Improved mRMR is a re-implementation of the minimum redundancy maximum relevance
 
 1. To build, enter project directory and type 'make'.
 2. To run from project directory, type './mrmr -h' to get usage information and additional help.
+
+VERSION HISTORY
+===============
+
+0.9 (beta)
+	- Support for delimiter specification.
+	- Minor improvement to log handling.
+	- Small incidental code changes.
+
+0.1 (beta)
+	- Initial release.
+

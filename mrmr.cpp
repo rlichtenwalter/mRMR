@@ -30,9 +30,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <list>
+#include <stack>
 #include <string>
 #include <utility>
 #include "dataset.hpp"
+
+std::string VERSION_STRING = "0.9 (beta)";
 
 enum verbosity_level : char {
 	QUIET = 0,
@@ -45,8 +49,8 @@ enum message_type : char {
 	START = 1,
 	FINISH = 2
 };
-std::chrono::time_point<std::chrono::high_resolution_clock> start_time;
 
+char DELIMITER = '\t';
 verbosity_level VERBOSITY = QUIET;
 
 void short_usage( char const * program ) {
@@ -57,32 +61,43 @@ void short_usage( char const * program ) {
 void usage( char const * program ) {
 	std::cerr << "Usage: " << program << " [OPTION]... [FILE]                                     \n";
 	std::cerr << "Compute mRMR values for attributes in data set, either taking input from        \n";
-	std::cerr << "standard input or from a file. Input from standard input, named pipes or process\n";
-	std::cerr << "substitution requires that the number of instances is specified in advance.     \n";
+	std::cerr << "standard input or from a file. Named pipes and process substitution may also be \n";
+	std::cerr << "used as the file argument.                                                      \n";
 	std::cerr << "                                                                                \n";
+	std::cerr << "  -t, --delimiter=CHAR      use CHAR for field separator                        \n";
+	std::cerr << "                            defaults to TAB if not provided                     \n";
 	std::cerr << "  -c, --class=NUM           1-indexed class attribute selection;                \n";
 	std::cerr << "                            defaults to 1 if not provided                       \n";
 	std::cerr << "  -d, --discretize=VALUE    one of {round,floor,ceiling};                       \n";
 	std::cerr << "                            defaults to ceiling if not provided                 \n";
 	std::cerr << "  -l, --verbosity=VALUE     one of {0,1,2,quiet,info,debug};                    \n";
 	std::cerr << "                            defaults to 0=quiet if not provided                 \n";
-	std::cerr << "  -h, --help     display this help and exit                                     \n";
-	std::cerr << "  -v, --version  output version information and exist                           \n";
+	std::cerr << "  -w, --write-data          read, transform, and write data set to stdout       \n";
+	std::cerr << "                            output respects -t option if specified              \n";
+	std::cerr << "  -h, --help                display this help and exit                          \n";
+	std::cerr << "  -v, --version             output version information and exist                \n";
 }
 
 void log_message( char const * message, verbosity_level verbosity, message_type mtype ) {
+	using time_type = std::chrono::time_point<std::chrono::high_resolution_clock>;
+	static std::stack<time_type,std::list<time_type>> time_stack;
 	if( VERBOSITY >= verbosity ) {
+		if( mtype == STANDARD && time_stack.size() > 0 ) {
+			std::cerr << '\n';
+		}
 		if( mtype == STANDARD || mtype == START ) {
 			std::time_t time = std::time( nullptr );
-			std::cerr << std::put_time( std::localtime( &time ), "%Y-%m-%d %H:%M:%S" ) << " - " << message;
+			std::cerr << std::string( time_stack.size(), '\t' ) << std::put_time( std::localtime( &time ), "%Y-%m-%d %H:%M:%S" ) << " - " << message;
 		}
 		if( mtype == STANDARD ) {
 			std::cerr << '\n';
 		} else if( mtype == START ) {
-			start_time = std::chrono::high_resolution_clock::now();
+			time_stack.emplace( std::chrono::high_resolution_clock::now() );
 		} else if( mtype == FINISH ) {
+			auto start_time = time_stack.top();
 			std::chrono::duration<double> time_span = std::chrono::duration_cast< std::chrono::duration<double> >( std::chrono::high_resolution_clock::now() - start_time );
-			std::cerr << "DONE (" << time_span.count() << " seconds)\n";
+			time_stack.pop();
+			std::cerr << std::string( time_stack.size(), '\t' ) << "DONE (" << time_span.count() << " seconds)\n";
 		}
 	}
 }
@@ -104,18 +119,29 @@ int main( int argc, char* argv[] ) {
 	int option_index = 0;
 	while( true ) {
 		static struct option long_options[] = {
+				{ "delimiter", required_argument, 0, 't' },
 				{ "class", required_argument, 0, 'c' },
 				{ "discretize", required_argument, 0, 'd' },
-				{ "verbosity", required_argument, 0, 'l' },
+				{ "verbosity", required_argument, 0, 'v' },
 				{ "write", no_argument, 0, 'w' },
 				{ "help", no_argument, 0, 'h' },
-				{ "version", no_argument, 0, 'v' }
+				{ "version", no_argument, 0, 'V' }
 				};
-		c = getopt_long( argc, argv, "c:d:l:whv", long_options, &option_index );
+		c = getopt_long( argc, argv, "t:c:d:v:whV", long_options, &option_index );
 		if( c == -1 ) {
 			break;
 		}
 		switch( c ) {
+			case 't':
+				if( strcmp( optarg, "\\t" ) == 0 ) {
+					DELIMITER = '\t';
+				} else if( strlen( optarg ) != 1 ) {
+					std::cerr << argv[0] << ":  -t, --delimiter=CHAR  must be a single character\n";
+					return 1;
+				} else {
+					DELIMITER = optarg[0];
+				}
+				break;
 			case 'c':
 				class_attribute = std::strtoul( optarg, nullptr, 10 );
 				if( class_attribute == 0 || errno == ERANGE ) {
@@ -136,7 +162,7 @@ int main( int argc, char* argv[] ) {
 					return 1;
 				}
 				break;
-			case 'l':
+			case 'v':
 				if( strcmp( optarg, "0" ) == 0 || strcmp( optarg, "quiet" ) == 0 ) {
 					VERBOSITY = QUIET;
 				} else if( strcmp( optarg, "1" ) == 0 || strcmp( optarg, "info" ) == 0 ) {
@@ -144,7 +170,7 @@ int main( int argc, char* argv[] ) {
 				} else if( strcmp( optarg, "2" ) == 0 || strcmp( optarg, "debug" ) == 0 ) {
 					VERBOSITY = DEBUG;
 				} else {
-					std::cerr << argv[0] << ": " << "  -l, --verbosity=[VALUE]  one of {0,1,2,quiet,info,debug}; defaults to 0=quiet\n";
+					std::cerr << argv[0] << ": " << "  -v, --verbosity=[VALUE]  one of {0,1,2,quiet,info,debug}; defaults to 0=quiet\n";
 					short_usage( argv[0] );
 					return 1;
 				}
@@ -155,8 +181,8 @@ int main( int argc, char* argv[] ) {
 			case 'h':
 				usage( argv[0] );
 				return 0;
-			case 'v':
-				std::cout << "mrmr by Ryan N. Lichtenwalter v0.1 (BETA)\n";
+			case 'V':
+				std::cout << "Improved mRMR by Ryan N. Lichtenwalter v" << VERSION_STRING << "\n";
 				return 0;
 			default:
 				short_usage( argv[0] );
