@@ -28,6 +28,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "dataset.hpp"
 #include "matrix.hpp"
 
+char DELIMITER = '\t';
+
 std::string test( bool value ) {
 	return value ? "PASSED" : "FAILED";
 }
