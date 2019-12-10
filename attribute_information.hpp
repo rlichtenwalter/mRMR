@@ -53,13 +53,15 @@ attribute_information<T>::attribute_information( ForwardIterator first, ForwardI
 		++first;
 	}
 
-	// find maximum populated value in histogram and populate storage-optimized final PDF
-	auto begin = std::cbegin( temp_histogram );
-	auto end = std::cend( temp_histogram );
-	while( *(--end) == 0 ) {}
-	++end;
-	_pdf.resize( end - begin );
-	std::copy( begin, end, std::begin( _pdf ) );
+	// find non-zero values in histogram and populate storage-optimized final PDF
+	T buckets = 0;
+	for( auto it = std::cbegin( temp_histogram ) ; it != std::cend( temp_histogram ); ++it ) {
+		if( *it != 0 ) {
+			++buckets;
+		}
+	}
+	_pdf.resize( buckets );
+	std::copy_if( std::cbegin( temp_histogram ), std::cend( temp_histogram ), std::begin( _pdf ), []( unsigned int freq ) { return freq != 0; } );
 	_pdf = _pdf / static_cast<double>( count );
 
 	// compute entropy
