@@ -36,12 +36,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <utility>
 #include "dataset.hpp"
 
-std::string VERSION_STRING = "0.9 (beta)";
+std::string VERSION_STRING = "0.91 (beta)";
 
 enum verbosity_level : char {
 	QUIET = 0,
-	INFO = 1,
-	DEBUG = 2
+	WARNING = 1,
+	INFO = 2,
+	DEBUG = 3
 };
 
 enum message_type : char {
@@ -51,7 +52,7 @@ enum message_type : char {
 };
 
 char DELIMITER = '\t';
-verbosity_level VERBOSITY = QUIET;
+verbosity_level VERBOSITY = WARNING;
 
 void short_usage( char const * program ) {
 	std::cerr << "Usage: " << program << " [OPTION]... [FILE]                                     \n";
@@ -68,10 +69,10 @@ void usage( char const * program ) {
 	std::cerr << "                            defaults to TAB if not provided                     \n";
 	std::cerr << "  -c, --class=NUM           1-indexed class attribute selection;                \n";
 	std::cerr << "                            defaults to 1 if not provided                       \n";
-	std::cerr << "  -d, --discretize=VALUE    one of {round,floor,ceiling};                       \n";
-	std::cerr << "                            defaults to ceiling if not provided                 \n";
-	std::cerr << "  -l, --verbosity=VALUE     one of {0,1,2,quiet,info,debug};                    \n";
-	std::cerr << "                            defaults to 0=quiet if not provided                 \n";
+	std::cerr << "  -d, --discretize=VALUE    one of {round,floor,ceiling,truncate};              \n";
+	std::cerr << "                            defaults to truncate if not provided                \n";
+	std::cerr << "  -l, --verbosity=VALUE     one of {0,1,2,3,quiet,warning,info,debug};          \n";
+	std::cerr << "                            defaults to 1=warning if not provided               \n";
 	std::cerr << "  -w, --write-data          read, transform, and write data set to stdout       \n";
 	std::cerr << "                            output respects -t option if specified              \n";
 	std::cerr << "  -h, --help                display this help and exit                          \n";
@@ -112,7 +113,8 @@ int main( int argc, char* argv[] ) {
 	using dataset_type = dataset<storage_type>;
 	std::ifstream ifs;
 	std::size_t class_attribute = 0;
-	dataset_type::discretization_method discretize = dataset_type::ROUND;
+	dataset_type::discretization_method discretize = dataset_type::TRUNCATE;
+	bool discretization_chosen = false;
 	bool just_write = false;
 
 	int c;
@@ -157,20 +159,25 @@ int main( int argc, char* argv[] ) {
 					discretize = dataset_type::FLOOR;
 				} else if( strcmp( optarg, "ceiling" ) == 0 ) {
 					discretize = dataset_type::CEILING;
+				} else if( strcmp( optarg, "truncate" ) == 0 ) {
+					discretize = dataset_type::TRUNCATE;
 				} else {
-					std::cerr << argv[0] << ": -d --discretize=VALUE  must be one of one of {round,floor,ceiling}\n";
+					std::cerr << argv[0] << ": -d --discretize=VALUE  must be one of one of {round,floor,ceiling,truncate}\n";
 					return 1;
 				}
+				discretization_chosen = true;
 				break;
 			case 'v':
 				if( strcmp( optarg, "0" ) == 0 || strcmp( optarg, "quiet" ) == 0 ) {
 					VERBOSITY = QUIET;
+				} else if( strcmp( optarg, "1" ) == 0 || strcmp( optarg, "warning" ) == 0 ) {
+					VERBOSITY = WARNING;
 				} else if( strcmp( optarg, "1" ) == 0 || strcmp( optarg, "info" ) == 0 ) {
 					VERBOSITY = INFO;
 				} else if( strcmp( optarg, "2" ) == 0 || strcmp( optarg, "debug" ) == 0 ) {
 					VERBOSITY = DEBUG;
 				} else {
-					std::cerr << argv[0] << ": " << "  -v, --verbosity=[VALUE]  one of {0,1,2,quiet,info,debug}; defaults to 0=quiet\n";
+					std::cerr << argv[0] << ": " << "  -v, --verbosity=[VALUE]  one of {0,1,2,3,quiet,warning,info,debug}; defaults to 1=warning\n";
 					short_usage( argv[0] );
 					return 1;
 				}
@@ -212,6 +219,10 @@ int main( int argc, char* argv[] ) {
 		data = dataset_type( std::cin, discretize );
 	}
 	log_message( "DONE", INFO, FINISH );
+
+	if( !discretization_chosen ) {
+		log_message( "No discretization method chosen. Default 'truncate' used...", WARNING, STANDARD );
+	}
 
 	if( just_write ) {
 		log_message( "Writing dataset out standard output...", INFO, START );

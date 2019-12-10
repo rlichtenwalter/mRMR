@@ -19,6 +19,13 @@ Improved mRMR is a re-implementation of the minimum redundancy maximum relevance
 VERSION HISTORY
 ===============
 
+0.91 (beta)
+	- Refactored discretization code.
+	- Added 'truncate' discretization procedure and make it the default.
+	- Added support for new warning log level and made it the default.
+	- Now warn in case a discretization method is not explicitly chosen.
+	- Implemented attribute domain translation and integer overflow detection.
+
 0.9 (beta)
 	- Support for delimiter specification.
 	- Minor improvement to log handling.
