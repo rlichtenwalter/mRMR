@@ -71,12 +71,12 @@ void usage( char const * program ) {
 	std::cerr << "                            defaults to 1 if not provided                       \n";
 	std::cerr << "  -d, --discretize=VALUE    one of {round,floor,ceiling,truncate};              \n";
 	std::cerr << "                            defaults to truncate if not provided                \n";
-	std::cerr << "  -l, --verbosity=VALUE     one of {0,1,2,3,quiet,warning,info,debug};          \n";
+	std::cerr << "  -v, --verbosity=VALUE     one of {0,1,2,3,quiet,warning,info,debug};          \n";
 	std::cerr << "                            defaults to 1=warning if not provided               \n";
 	std::cerr << "  -w, --write-data          read, transform, and write data set to stdout       \n";
 	std::cerr << "                            output respects -t option if specified              \n";
 	std::cerr << "  -h, --help                display this help and exit                          \n";
-	std::cerr << "  -v, --version             output version information and exist                \n";
+	std::cerr << "  -V, --version             output version information and exist                \n";
 }
 
 void log_message( char const * message, verbosity_level verbosity, message_type mtype ) {
