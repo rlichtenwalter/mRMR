@@ -24,9 +24,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <iterator>
 #include <sstream>
 #include <string>
-#include "attribute_information.hpp"
-#include "dataset.hpp"
-#include "matrix.hpp"
+#include "../include/attribute_information.hpp"
+#include "../include/dataset.hpp"
+#include "../include/matrix.hpp"
 
 char DELIMITER = '\t';
 

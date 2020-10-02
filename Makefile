@@ -19,9 +19,9 @@
 ##
 
 CC := g++
-COMMON_FLAGS := -std=c++14 -Wall -Wextra -Werror -Wno-unused-local-typedefs -pedantic
+COMMON_FLAGS := -std=c++14 -Wall -Wextra -Werror -pedantic -Wno-unused-local-typedefs
 
-DEBUG_FLAGS := -Og -g -fsanitize=address -fno-omit-frame-pointer -fmax-errors=1
+DEBUG_FLAGS := -Og -g -fsanitize=address -fno-omit-frame-pointer
 RELEASE_FLAGS := -O3 -flto -fomit-frame-pointer -D NDEBUG
 
 ifeq ($(DEBUG),1)
@@ -30,20 +30,25 @@ else
 	CFLAGS := $(COMMON_FLAGS) $(RELEASE_FLAGS)
 endif
 
-mrmr: mrmr.o
+all: bin/mrmr
+
+bin/:
+	mkdir $@
+
+bin/mrmr: src/mrmr.o | bin/
 	$(CC) $(CFLAGS) -o $@ $^
 
-test: tests
-	./tests
+test: bin/tests
+	$<
 
-tests: tests.o
+bin/tests: src/tests.o | bin/
 	$(CC) $(CFLAGS) -o $@ $^
 
 %.o: %.cpp
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-.PHONY: clean test
+.PHONY: all clean test
 
 clean:
-	rm -f *.o
+	rm -f src/*.o bin/*
 

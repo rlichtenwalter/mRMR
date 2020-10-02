@@ -13,11 +13,22 @@ Improved mRMR is a re-implementation of the minimum redundancy maximum relevance
 - high-quality C++14 compliant code base
 
 
+BUILING
+===============
 1. To build, enter project directory and type 'make'.
 2. To run from project directory, type './mrmr -h' to get usage information and additional help.
 
+EXAMPLE USAGE
+===============
+The following two commands are equivalent in effect when run from the project top-level directory.
+
+< example.tsv bin/mrmr
+bin/mrmr -t '\t' -c 1 -d 'truncate' example.tsv
+
 VERSION HISTORY
 ===============
+0.92 (beta)
+	- Added example data and updated README with example usage.
 
 0.91 (beta)
 	- Refactored discretization code.

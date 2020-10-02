@@ -34,7 +34,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <stack>
 #include <string>
 #include <utility>
-#include "dataset.hpp"
+#include "../include/dataset.hpp"
 
 std::string VERSION_STRING = "0.91 (beta)";
 
