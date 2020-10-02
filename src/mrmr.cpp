@@ -36,7 +36,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <utility>
 #include "../include/dataset.hpp"
 
-std::string VERSION_STRING = "0.91 (beta)";
+std::string VERSION_STRING = "0.92 (beta)";
 
 enum verbosity_level : char {
 	QUIET = 0,
