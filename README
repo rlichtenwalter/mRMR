@@ -25,10 +25,13 @@ The following two commands are equivalent in effect when run from the project to
 < example.tsv bin/mrmr
 bin/mrmr -t '\t' -c 1 -d 'truncate' example.tsv
 
+Notes: Implemented discretization functionality is minimal. Feature values are expected to be or to discretize to be contiguous integers starting from 0, but this is not currently checked.
+
 VERSION HISTORY
 ===============
 0.92 (beta)
 	- Added example data and updated README with example usage.
+	- Added note about expected feature value ranges.
 
 0.91 (beta)
 	- Refactored discretization code.
