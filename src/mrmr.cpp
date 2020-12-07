@@ -51,7 +51,7 @@ enum message_type : char {
 	FINISH = 2
 };
 
-char DELIMITER = '\t';
+extern char DELIMITER;
 verbosity_level VERBOSITY = WARNING;
 
 void short_usage( char const * program ) {
