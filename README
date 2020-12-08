@@ -29,6 +29,9 @@ Notes: Implemented discretization functionality is minimal. Feature values are e
 
 VERSION HISTORY
 ===============
+0.93 (beta)
+	- Added header for easier usage as library principally in support of Python bindings.
+
 0.92 (beta)
 	- Added example data and updated README with example usage.
 	- Added note about expected feature value ranges.

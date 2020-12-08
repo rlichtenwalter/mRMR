@@ -34,11 +34,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "matrix.hpp"
 #include "typedef.hpp"
 
-extern char DELIMITER;
+char DELIMITER = '\t';
 
 template <typename T>
 class dataset {
 	template <typename U> friend std::ostream & operator<<( std::ostream & os, dataset<U> const & m );
+	private:
+		using itype = long;
+		using fptype = double;
 	public:
 		using value_type = T;
 		enum discretization_method : char {
@@ -49,46 +52,26 @@ class dataset {
 		};
 		dataset();
 		dataset( std::istream &, discretization_method dm = ROUND );
+		template <typename U> dataset( std::vector<U> data, std::size_t num_instances, std::size_t num_attributes, bool column_major = false, std::vector<std::string> names = std::vector<std::string>(), discretization_method dm = ROUND ); 
 		std::size_t num_instances() const;
 		std::size_t num_attributes() const;
 		std::string attribute_name( std::size_t attribute_num ) const;
 		double attribute_entropy( std::size_t attribute_num ) const;
 		double mutual_information( std::size_t attribute1, std::size_t attribute2 ) const;
 	private:
+		template <typename U> void transpose_and_discretize( matrix<U> const & temp, discretization_method dm );
+		void compute_attribute_information();
 		std::vector<std::string> _names;
 		std::vector<attribute_information<T> > _attr_info;
 		matrix<T> _data;
 };
 
 template <typename T>
-dataset<T>::dataset() : _data( 0, 0 ) {
-}
-
-template <typename T>
-dataset<T>::dataset( std::istream & is, discretization_method dm ) {
-	// the pointer below is managed via the library interface
-	is.imbue( std::locale( is.getloc(), new delimiter_ctype( DELIMITER ) ) );
-
-	// read header line with attribute names
-	std::string name;
-	while( is.good() && is.peek() != '\n' ) {
-		is >> name;
-		_names.push_back( name );
-	}
-	if( is.peek() != '\n' ) {
-		std::cerr << "error: missing required newline after header\n";
-		exit( 2 );
-	}
-
-	// read data matrix
-	using fptype = double;
-	using itype = long;
-	matrix<fptype> temp;
-	is >> temp;
-
+template <typename U>
+void dataset<T>::transpose_and_discretize( matrix<U> const & temp, discretization_method dm ) {
 	// prepare matrix for computation by transposing and performing requested discretization procedure
 	// loop code is not factored out of switch, because some procedures (e.g. z-score) might require access to the whole attribute, and others might conceivably even require access to the whole data set
-	// IMPORTANT: note that transposing for column-major storage (memory-efficient per-attribute computations) is being at the same time below
+	// IMPORTANT: note that transposing for column-major storage (memory-efficient per-attribute computations) is being done at the same time below
 	// IMPORTANT: note that attributes are being translated for contiguous unsigned integer storage if unsigned integer type is used; the minimum value data is collected below
 	_data = matrix<T>( num_attributes(), temp.num_rows() );
 	std::vector<itype> minima( num_attributes(), 0 );
@@ -148,6 +131,10 @@ dataset<T>::dataset( std::istream & is, discretization_method dm ) {
 		}
 	}
 
+}
+
+template <typename T>
+void dataset<T>::compute_attribute_information() {
 	// perform basic attribute computations and cache results
 	_attr_info.reserve( num_attributes() );
 	for( std::size_t attribute_num = 0; attribute_num < num_attributes(); ++attribute_num ) {
@@ -155,6 +142,65 @@ dataset<T>::dataset( std::istream & is, discretization_method dm ) {
 		auto attribute_end = attribute_begin + num_instances();
 		_attr_info.emplace_back( attribute_begin, attribute_end );
 	}
+}
+
+template <typename T>
+dataset<T>::dataset() : _data( 0, 0 ) {
+}
+
+template <typename T>
+dataset<T>::dataset( std::istream & is, discretization_method dm ) {
+	// the pointer below is managed via the library interface
+	is.imbue( std::locale( is.getloc(), new delimiter_ctype( DELIMITER ) ) );
+
+	// read header line with attribute names
+	std::string name;
+	while( is.good() && is.peek() != '\n' ) {
+		is >> name;
+		_names.push_back( name );
+	}
+	if( is.peek() != '\n' ) {
+		std::cerr << "error: missing required newline after header\n";
+		exit( 2 );
+	}
+
+	// read data matrix
+	matrix<fptype> temp;
+	is >> temp;
+
+	transpose_and_discretize( temp, dm );
+	
+	compute_attribute_information();
+}
+
+template <typename T>
+template <typename U>
+dataset<T>::dataset( std::vector<U> data, std::size_t num_instances, std::size_t num_attributes, bool column_major, std::vector<std::string> names, discretization_method dm ) : _names( std::move( names ) ) {
+	if( num_instances * num_attributes != data.size() ) {
+		throw std::logic_error( "data size must equal the product of num_instances and num_attributes" );
+	}
+	if( _names.empty() ) {
+		for( std::size_t i = 0; i < num_attributes; ++i ) {
+			_names.emplace_back( "attr" + std::to_string( i ) );
+		}
+	} else if( num_attributes != _names.size() ) {
+		throw std::logic_error( "names size must either equal num_attributes or be 0" );
+	}
+	matrix<T> temp( num_instances, num_attributes );
+	for( std::size_t instance_num = 0; instance_num < num_instances; ++instance_num ) {
+		for( std::size_t attribute_num = 0; attribute_num < num_attributes; ++attribute_num ) {
+			// IMPORTANT: note that transposing for column-major storage (memory-efficient per-attribute computations) is being done at the same time below
+			if( column_major ) {
+				temp( instance_num, attribute_num ) = data[ attribute_num * num_instances + instance_num ];
+			} else {
+				temp( instance_num, attribute_num ) = data[ instance_num * num_attributes + attribute_num ];
+			}
+		}
+	}
+	
+	transpose_and_discretize( temp, dm );
+
+	compute_attribute_information();
 }
 
 template <typename T>
@@ -189,7 +235,9 @@ double dataset<T>::mutual_information( std::size_t attribute1, std::size_t attri
 		++histogram[ _data( attribute1, i ) * a2_num_values + _data( attribute2, i ) ];
 	}
 	std::valarray<probability> joint_probabilities( histogram.size() );
-	std::copy( std::cbegin( histogram ), std::cend( histogram ), std::begin( joint_probabilities ) );
+// should be using cbegin and cend but this breaks with some lingering lib versions
+//	std::copy( std::cbegin( histogram ), std::cend( histogram ), std::begin( joint_probabilities ) );
+	std::copy( std::begin( histogram ), std::end( histogram ), std::begin( joint_probabilities ) );
 	joint_probabilities /= static_cast<double>( num_instances() );
 
 	double mutual_information = 0.0;

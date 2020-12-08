@@ -59,7 +59,7 @@ matrix<T>::matrix( std::size_t num_rows, std::size_t num_columns ) : _num_rows(n
 }
 
 template <typename T>
-matrix<T>::matrix( std::size_t num_rows, std::size_t num_columns, T const & value ) : _num_rows(num_rows), _num_columns(num_columns), _data( std::valarray<T>( num_rows * num_columns ) ) {
+matrix<T>::matrix( std::size_t num_rows, std::size_t num_columns, T const & value ) : _num_rows(num_rows), _num_columns(num_columns), _data( std::valarray<T>( value, num_rows * num_columns ) ) {
 }
 
 template <typename T>
@@ -148,7 +148,9 @@ std::istream & operator>>( std::istream & is, matrix<T> & m ) {
 			} else {
 				temp.resize( 2 * m.num_rows() * m.num_columns() );
 			}
-			std::copy( std::cbegin( m._data ), std::cend( m._data ), std::begin( temp ) );
+// should be using cbegin and cend, but this breaks with some lingering lib versions
+//			std::copy( std::cbegin( m._data ), std::cend( m._data ), std::begin( temp ) );
+			std::copy( std::begin( m._data ), std::end( m._data ), std::begin( temp ) );
 			m._data = std::move( temp );
 		}
 		m( m.num_rows() - 1, column_num ) = d;
@@ -171,7 +173,9 @@ std::istream & operator>>( std::istream & is, matrix<T> & m ) {
 	if( m.num_rows() * m.num_columns() < m._data.size() ) {
 		std::valarray<T> temp;
 		temp.resize( m.num_rows() * m.num_columns() );
-		std::copy( std::cbegin( m._data ), std::cbegin( m._data ) + m.num_rows() * m.num_columns(), std::begin( temp ) );
+// should be using cbegin and cend, but this breaks with some lingering lib versions
+//		std::copy( std::cbegin( m._data ), std::cbegin( m._data ) + m.num_rows() * m.num_columns(), std::begin( temp ) );
+		std::copy( std::begin( m._data ), std::begin( m._data ) + m.num_rows() * m.num_columns(), std::begin( temp ) );
 		m._data = std::move( temp );
 	}
 	return is;
