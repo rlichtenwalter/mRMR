@@ -28,7 +28,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "../include/dataset.hpp"
 #include "../include/matrix.hpp"
 
-char DELIMITER = '\t';
+extern char DELIMITER;
 
 std::string test( bool value ) {
 	return value ? "PASSED" : "FAILED";
