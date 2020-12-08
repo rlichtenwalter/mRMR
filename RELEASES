@@ -1,0 +1,30 @@
+Change Log
+==========
+
+Version 0.9.3 (beta)
+--------------------
+- Added header for easier usage as library principally in support of Python bindings.
+
+Version 0.9.2 (beta)
+--------------------
+- Added example data and updated README with example usage.
+- Added note about expected feature value ranges.
+
+Version 0.9.1 (beta)
+--------------------
+- Refactored discretization code.
+- Added 'truncate' discretization procedure and make it the default.
+- Added support for new warning log level and made it the default.
+- Now warn in case a discretization method is not explicitly chosen.
+- Implemented attribute domain translation and integer overflow detection.
+
+Version 0.9.0 (beta)
+--------------------
+- Support for delimiter specification.
+- Minor improvement to log handling.
+- Small incidental code changes.
+
+Version 0.1.0 (beta)
+--------------------
+- Initial release.
+
