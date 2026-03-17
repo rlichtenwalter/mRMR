@@ -21,9 +21,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef MRMR_DELIMITER_CTYPE_HPP
 #define MRMR_DELIMITER_CTYPE_HPP
 
+#include <algorithm>
 #include <locale>
 #include <string>
-#include <vector>
 
 class delimiter_ctype : public std::ctype<char> {
 public:
@@ -35,21 +35,22 @@ private:
 };
 
 inline std::ctype<char>::mask const *delimiter_ctype::make_table(std::string delimiters) {
-  static std::vector<mask> stream_table(classic_table(), classic_table() + table_size);
-  for (auto &m : stream_table) {
-    m &= ~space;
+  auto *table = new mask[table_size];
+  std::copy(classic_table(), classic_table() + table_size, table);
+  for (std::size_t i = 0; i < table_size; ++i) {
+    table[i] &= ~space;
   }
   for (auto delimiter : delimiters) {
-    stream_table[static_cast<unsigned char>(delimiter)] |= space;
+    table[static_cast<unsigned char>(delimiter)] |= space;
   }
-  stream_table['\n'] |= space;
-  return &stream_table[0];
+  table['\n'] |= space;
+  return table;
 }
 
 inline delimiter_ctype::delimiter_ctype(char delimiter, std::size_t refs)
-    : ctype(make_table(std::string(1, delimiter)), false, refs) {}
+    : ctype(make_table(std::string(1, delimiter)), true, refs) {}
 
 inline delimiter_ctype::delimiter_ctype(std::string delimiters, std::size_t refs)
-    : ctype(make_table(delimiters), false, refs) {}
+    : ctype(make_table(delimiters), true, refs) {}
 
 #endif
