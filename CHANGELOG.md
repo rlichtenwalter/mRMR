@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Unit tests for mRMR algorithm: cached vs on-the-fly equivalence, all-constant
   attributes edge case, callback invocation, triangular cache symmetry
 - Doxygen-compatible docstrings (LLVM style) for all public API elements
+- mRMRe ensemble feature selection (mrmre.hpp): exhaustive and bootstrap methods
+  with consensus ranking via feature frequency aggregation
 
 ### Changed
 - BREAKING: Headers moved to include/mrmr/ subdirectory
