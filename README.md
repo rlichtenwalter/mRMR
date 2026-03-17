@@ -63,33 +63,75 @@ pkg-config --cflags mrmr
 
 The planned `dataset_view` class enables zero-copy bootstrap resampling for ensemble mRMR
 by referencing the parent dataset through an instance index vector (with duplicates for
-bootstrap). The MI hot loop must access data through this indirection. Benchmarking on this
-system (x86-64, GCC 14, -O3) compared three access patterns for the joint histogram loop:
+bootstrap). The MI hot loop must access data through this indirection. Extensive benchmarking
+on this system (x86-64, GCC 14, -O3) compared multiple access strategies.
 
-| Access Pattern | 10K instances | 100K instances | Notes |
+### Per-pair histogram benchmarks (N=100K, card=4)
+
+| Access Pattern | Mean | vs Sequential |
+|---|---|---|
+| Both sequential (post-materialization) | 69 us | baseline |
+| Two sorted-index indirected | 90 us | +30% |
+| One materialized + one indirected | 98 us | +42% |
+| Column materialization (gather cost) | 58 us/col | — |
+
+At N=10K, all data fits in L1; sorting provides no benefit. At N=100K, sorting reduces
+overhead from +83% (unsorted) to +30% (sorted) by improving spatial locality.
+
+The mixed pattern (one materialized + one indirected) is surprisingly *slower* than two
+indirected. Mismatched memory access latency between the sequential and random streams
+causes pipeline stalls that offset the benefit of one sequential scan.
+
+### End-to-end triangular cache construction (M=200, N=100K, 19900 pairs)
+
+| Strategy | Total time | Per-pair | vs Indirection |
 |---|---|---|---|
-| Direct sequential | 5.1 us | 59 us | Baseline: contiguous stride-1 scan |
-| Sorted index indirection | 8.2 us | 90 us | +60% / +53% over baseline |
-| Unsorted index indirection | 6.6 us | 108 us | +30% / +83% over baseline |
-| Column materialization | — | 80 us/col | Gather cost per column |
+| Sorted indirection | 1.69 s | 85 us | baseline |
+| Tiled B=16, materialized | 2.94 s | 148 us | +74% slower |
+| Tiled B=8, materialized | 3.05 s | 153 us | +81% slower |
 
-**Key findings:**
-- At N <= 10K, all data fits in L1 cache; sorting indices provides no benefit (unsorted
-  is actually faster due to fewer histogram bin collision chains with clustered accesses).
-- At N >= 100K, sorting indices improves spatial locality significantly (53% vs 83% overhead).
-- The histogram loop is ~33% of full MI cost; the rest is probability lookups and log2.
-  Sorted-index overhead on full MI is **~15-20%**, not 53%.
-- Column materialization (gather + sequential MI) costs ~160 us per pair vs ~90 us for
-  sorted indirection. Materialization only wins if a column is reused across many MI calls
-  without eviction from cache — which is infeasible for the triangular precomputation loop
-  with a small LRU cache (each column is evicted and re-materialized ~M/2 times).
-- **Index sorting cost**: 4.6 ms for 100K indices (one-time). Amortized over M^2/2 MI
-  calls, this is negligible.
+Cache-blocked (tiled) materialization was tested with block sizes B=8 and B=16. Each block
+of B columns is gathered into contiguous buffers, then all B*(B-1)/2 within-block pairs
+are computed with fully sequential access. Cross-block pairs materialize one column at a
+time against the cached block. Despite reducing total materializations from M^2/2 to M^2/B,
+the gather cost per column (~58 us) dominates: it exceeds the per-pair indirection savings
+(90 - 69 = 21 us) unless each column is reused for ~3+ MI calls. Even B=16 (reuse factor
+up to 15 for within-block) cannot compensate for the cross-block gather overhead.
 
-**Design decision:** Use sorted-index indirection via `operator()` on `dataset_view`.
-Sort indices at view construction time. No column materialization — the overhead is higher
-than the indirection it avoids. For N <= 10K, skip the sort (not beneficial). The ~15-20%
-full-MI overhead is an acceptable cost for zero-copy bootstrap capability.
+### On-the-fly mRMR path (49 candidates, N=100K)
+
+| Strategy | Total | Per-candidate |
+|---|---|---|
+| Two indirected | 4.15 ms | 85 us |
+| Last materialized + candidate indirected | 4.24 ms | 87 us |
+| Last materialized + candidate materialized | 6.75 ms | 138 us |
+
+Materializing the last-selected column and keeping it cached provides negligible benefit
+(~2% improvement) because the indirection overhead is small relative to the histogram
+computation itself. Materializing each candidate column adds ~63% overhead.
+
+### Design decision
+
+**Sorted-index indirection wins across all tested scenarios.** The gather cost per column
+(~58 us at N=100K) exceeds the indirection overhead per MI call (~21 us), so materialization
+only breaks even when columns are reused 3+ times without eviction. Neither the triangular
+cache construction nor the on-the-fly mRMR loop achieves sufficient reuse with practical
+cache sizes.
+
+Implementation: `dataset_view` uses `operator()(attr, inst)` with sorted-index indirection.
+Indices are sorted at view construction time (4.6 ms one-time cost for N=100K, amortized
+over all MI calls). For N <= 10K, sorting is skipped (no L1 cache benefit). The ~30%
+histogram loop overhead translates to ~15-20% overhead on full MI computation (histogram
+is ~33% of total MI cost including probability lookups and log2).
+
+### Benchmark reproduction
+
+Benchmarks are in `test/bench_view_access.cpp` (per-pair patterns) and
+`test/bench_view_tiled.cpp` (tiled triangular and on-the-fly strategies). Run with:
+```bash
+./build/test/bench_view_access "[view-access]"
+./build/test/bench_view_tiled "[tiled]"
+```
 
 ## Planned Features
 
