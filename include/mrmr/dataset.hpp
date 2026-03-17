@@ -34,7 +34,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <valarray>
 #include <vector>
 
-char DELIMITER = '\t';
+extern char DELIMITER;
 
 template <typename T> class dataset {
   template <typename U> friend std::ostream &operator<<(std::ostream &os, dataset<U> const &m);

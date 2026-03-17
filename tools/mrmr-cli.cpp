@@ -44,7 +44,7 @@ enum verbosity_level : char { QUIET = 0, WARNING = 1, INFO = 2, DEBUG = 3 };
 
 enum message_type : char { STANDARD = 0, START = 1, FINISH = 2 };
 
-extern char DELIMITER;
+char DELIMITER = '\t';
 verbosity_level VERBOSITY = WARNING;
 
 void short_usage(char const *program) {

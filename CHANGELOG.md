@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - CLI version string now read from VERSION file via CMake
 - Normalized include guard naming convention (MRMR_ prefix)
 - All source files formatted with clang-format (LLVM style, 100 column limit)
+- Mark delimiter_ctype non-template member functions as inline for ODR safety
+- Move DELIMITER global variable definition out of header into each binary source
+
+### Fixed
+- Fix delimiter_ctype::make_table iterate-by-value bug that failed to clear previous space bits
+- Preserve newline as whitespace in custom delimiter locale for correct header parsing
 
 ## [0.9.3] - 2020-12-07
 
