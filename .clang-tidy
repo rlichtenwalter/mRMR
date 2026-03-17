@@ -1,0 +1,26 @@
+Checks: >
+  -*,
+  bugprone-*,
+  modernize-*,
+  -modernize-use-trailing-return-type,
+  -modernize-use-nodiscard,
+  -modernize-avoid-c-arrays,
+  -modernize-type-traits,
+  performance-*,
+  readability-braces-around-statements,
+  readability-container-size-empty,
+  readability-redundant-smartptr-get,
+  misc-*,
+  -misc-no-recursion,
+  -misc-non-private-member-variables-in-classes,
+  -misc-include-cleaner,
+  -misc-const-correctness,
+  -misc-use-anonymous-namespace,
+
+WarningsAsErrors: ''
+
+HeaderFilterRegex: 'include/mrmr/.*\.hpp$'
+
+CheckOptions:
+  - key: readability-braces-around-statements.ShortStatementLines
+    value: 0

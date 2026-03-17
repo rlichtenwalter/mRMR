@@ -7,7 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-No changes yet.
+### Added
+- CMake build system with install support (find_package and pkg-config)
+- CTest integration with Catch2 v3 unit test suite (10 tests)
+- CLI integration tests (9 tests)
+- clang-format and clang-tidy configurations
+- pre-commit hooks for formatting and file hygiene
+- Gitea Actions CI workflow (build Release/Debug matrix, test, lint)
+- Include guard for mrmr.hpp header
+- CLI file-not-found error handling
+
+### Changed
+- BREAKING: Headers moved to include/mrmr/ subdirectory
+- BREAKING: Replaced Makefile with CMake
+- CLI tool moved from src/ to tools/
+- CLI version string now read from VERSION file via CMake
+- Normalized include guard naming convention (MRMR_ prefix)
+- All source files formatted with clang-format (LLVM style, 100 column limit)
+- Mark delimiter_ctype non-template member functions as inline for ODR safety
+- Move DELIMITER global variable definition out of header into each binary source
+
+### Fixed
+- Fix delimiter_ctype::make_table iterate-by-value bug that failed to clear previous space bits
+- Preserve newline as whitespace in custom delimiter locale for correct header parsing
 
 ## [0.9.3] - 2020-12-07
 
