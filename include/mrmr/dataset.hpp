@@ -36,11 +36,21 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <valarray>
 #include <vector>
 
-// Dataset container for discretized tabular data with cached information-theoretic measures.
-// T must be an unsigned integer type with max value <= 255 (typically unsigned char).
-// Input data must be complete (no missing values). After construction, attribute values are
-// guaranteed to be contiguous integers in [0, k) where k is the number of distinct values.
-// This class is not thread-safe for concurrent mutual_information() calls on the same instance.
+/**
+ * @brief Dataset container for discretized tabular data with cached information-theoretic measures.
+ *
+ * Holds a collection of named attributes over a set of instances. On construction,
+ * floating-point or integer input values are discretized and compacted to contiguous
+ * unsigned integer indices in [0, k) per attribute, enabling efficient histogram-based
+ * mutual information computation. Entropy and marginal probabilities are precomputed
+ * and cached for all attributes.
+ *
+ * Input data must be complete (no missing values). This class is not thread-safe
+ * for concurrent mutual_information() calls on the same instance.
+ *
+ * @tparam T Unsigned integer storage type. Must have
+ *           std::numeric_limits<T>::max() <= 255 (typically unsigned char).
+ */
 template <typename T> class dataset {
   static_assert(std::numeric_limits<T>::max() <= 255,
                 "dataset only supports storage types with max value <= 255");
@@ -52,18 +62,93 @@ private:
   using fptype = double;
 
 public:
+  /** @brief Alias for the element storage type. */
   using value_type = T;
+
+  /**
+   * @brief Method used to map continuous values to integers during discretization.
+   *
+   * - ROUND:    std::round() — nearest integer, ties away from zero.
+   * - FLOOR:    std::floor() — largest integer not greater than the value.
+   * - CEILING:  std::ceil()  — smallest integer not less than the value.
+   * - TRUNCATE: std::trunc() — integer part with the fractional part discarded.
+   */
   enum discretization_method : char { ROUND = 0, FLOOR = 1, CEILING = 2, TRUNCATE = 3 };
+
+  /** @brief Construct an empty dataset with no instances or attributes. */
   dataset();
+
+  /**
+   * @brief Construct a dataset by reading a delimited text stream.
+   *
+   * Expects a header line containing tab-separated (or @p delimiter-separated)
+   * attribute names followed by rows of numeric data, one instance per row.
+   * Values are discretized according to @p dm and compacted to dense indices.
+   *
+   * @param is        Input stream positioned at the beginning of the header line.
+   * @param dm        Discretization method applied to each value.
+   * @param delimiter Field separator character (default tab).
+   * @throws std::runtime_error If the header newline is missing or column counts
+   *                            are inconsistent across rows.
+   */
   dataset(std::istream &, discretization_method dm = ROUND, char delimiter = '\t');
+
+  /**
+   * @brief Construct a dataset from an in-memory data vector.
+   *
+   * The vector must contain exactly @p num_instances * @p num_attributes elements
+   * laid out in row-major order (instance-major) unless @p column_major is true,
+   * in which case column-major (attribute-major) layout is assumed.
+   *
+   * @tparam U Source element type; must be convertible to the storage type T.
+   * @param data           Flat vector of data values.
+   * @param num_instances  Number of instances (rows).
+   * @param num_attributes Number of attributes (columns).
+   * @param column_major   If true, @p data is in column-major order.
+   * @param names          Attribute names; if empty, names are generated as "attr0", "attr1", ...
+   * @param dm             Discretization method applied to each value.
+   * @param delimiter      Field separator character used for stream output.
+   * @throws std::logic_error If data.size() != num_instances * num_attributes, or
+   *                          if names is non-empty and names.size() != num_attributes.
+   */
   template <typename U>
   dataset(std::vector<U> data, std::size_t num_instances, std::size_t num_attributes,
           bool column_major = false, std::vector<std::string> names = std::vector<std::string>(),
           discretization_method dm = ROUND, char delimiter = '\t');
+
+  /** @brief Return the number of instances (rows) in the dataset. */
   std::size_t num_instances() const;
+
+  /** @brief Return the number of attributes (columns) in the dataset. */
   std::size_t num_attributes() const;
+
+  /**
+   * @brief Return the name of the attribute at the given index.
+   *
+   * @param attribute_num Attribute index in [0, num_attributes()).
+   * @return Attribute name string.
+   */
   std::string attribute_name(std::size_t attribute_num) const;
+
+  /**
+   * @brief Return the Shannon entropy (in bits) of the given attribute.
+   *
+   * @param attribute_num Attribute index in [0, num_attributes()).
+   * @return Entropy value >= 0.
+   */
   double attribute_entropy(std::size_t attribute_num) const;
+
+  /**
+   * @brief Compute the mutual information between two attributes.
+   *
+   * Uses precomputed marginal probabilities and a reusable internal scratch
+   * buffer to build the joint histogram. Returns 0 if either attribute has
+   * only one distinct value.
+   *
+   * @param attribute1 Index of the first attribute in [0, num_attributes()).
+   * @param attribute2 Index of the second attribute in [0, num_attributes()).
+   * @return Mutual information I(attribute1; attribute2) >= 0, in bits.
+   */
   double mutual_information(std::size_t attribute1, std::size_t attribute2) const;
 
 private:
@@ -277,6 +362,17 @@ double dataset<T>::mutual_information(std::size_t attribute1, std::size_t attrib
   return mi;
 }
 
+/**
+ * @brief Write a dataset to an output stream.
+ *
+ * Outputs a header line of delimiter-separated attribute names followed by rows
+ * of data, one instance per row. Element values are written as unsigned integers.
+ *
+ * @tparam U Element storage type.
+ * @param os   Output stream.
+ * @param data Dataset to write.
+ * @return Reference to @p os.
+ */
 template <typename T> std::ostream &operator<<(std::ostream &os, dataset<T> const &data) {
   if (data.num_attributes() > 0) {
     os << data._names.at(0);

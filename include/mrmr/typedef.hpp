@@ -21,6 +21,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef MRMR_TYPEDEF_HPP
 #define MRMR_TYPEDEF_HPP
 
+/** @brief Floating-point type used for probability values throughout the library. */
 using probability = double;
 
 #endif
