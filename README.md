@@ -59,6 +59,12 @@ Or via pkg-config:
 pkg-config --cflags mrmr
 ```
 
+## Planned Features
+
+- Missing value support: simple imputation methods (mode, median) and pairwise complete
+  observations (per-pair deletion as used in mRMRe) for mutual information computation
+- mRMRe ensemble feature selection with bootstrap and exhaustive methods
+
 ## License
 
 GPL-3.0
