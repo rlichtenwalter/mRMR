@@ -59,6 +59,38 @@ Or via pkg-config:
 pkg-config --cflags mrmr
 ```
 
+## Design Notes: Dataset View Access Patterns
+
+The planned `dataset_view` class enables zero-copy bootstrap resampling for ensemble mRMR
+by referencing the parent dataset through an instance index vector (with duplicates for
+bootstrap). The MI hot loop must access data through this indirection. Benchmarking on this
+system (x86-64, GCC 14, -O3) compared three access patterns for the joint histogram loop:
+
+| Access Pattern | 10K instances | 100K instances | Notes |
+|---|---|---|---|
+| Direct sequential | 5.1 us | 59 us | Baseline: contiguous stride-1 scan |
+| Sorted index indirection | 8.2 us | 90 us | +60% / +53% over baseline |
+| Unsorted index indirection | 6.6 us | 108 us | +30% / +83% over baseline |
+| Column materialization | — | 80 us/col | Gather cost per column |
+
+**Key findings:**
+- At N <= 10K, all data fits in L1 cache; sorting indices provides no benefit (unsorted
+  is actually faster due to fewer histogram bin collision chains with clustered accesses).
+- At N >= 100K, sorting indices improves spatial locality significantly (53% vs 83% overhead).
+- The histogram loop is ~33% of full MI cost; the rest is probability lookups and log2.
+  Sorted-index overhead on full MI is **~15-20%**, not 53%.
+- Column materialization (gather + sequential MI) costs ~160 us per pair vs ~90 us for
+  sorted indirection. Materialization only wins if a column is reused across many MI calls
+  without eviction from cache — which is infeasible for the triangular precomputation loop
+  with a small LRU cache (each column is evicted and re-materialized ~M/2 times).
+- **Index sorting cost**: 4.6 ms for 100K indices (one-time). Amortized over M^2/2 MI
+  calls, this is negligible.
+
+**Design decision:** Use sorted-index indirection via `operator()` on `dataset_view`.
+Sort indices at view construction time. No column materialization — the overhead is higher
+than the indirection it avoids. For N <= 10K, skip the sort (not beneficial). The ~15-20%
+full-MI overhead is an acceptable cost for zero-copy bootstrap capability.
+
 ## Planned Features
 
 - Missing value support: simple imputation methods (mode, median) and pairwise complete
