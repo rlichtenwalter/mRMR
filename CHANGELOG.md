@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Optional callback parameter to mrmr() for streaming per-rank output
 - static_assert constraining storage type T to max value <= 255
 - Value compaction pass ensuring contiguous attribute indices after discretization
+- Triangular MI cache for O(1) pairwise MI lookup with dynamic strategy selection
+  based on attribute count (precompute for M <= 5000, on-the-fly for larger datasets)
+- Unit tests for mRMR algorithm: cached vs on-the-fly equivalence, all-constant
+  attributes edge case, callback invocation, triangular cache symmetry
 
 ### Changed
 - BREAKING: Headers moved to include/mrmr/ subdirectory

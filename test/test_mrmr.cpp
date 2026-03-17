@@ -29,6 +29,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <mrmr/attribute_information.hpp>
 #include <mrmr/dataset.hpp>
 #include <mrmr/matrix.hpp>
+#include <mrmr/mrmr.hpp>
 
 // ============================================================================
 // attribute_information tests
@@ -157,4 +158,92 @@ TEST_CASE("dataset mutual_information", "[dataset]") {
 
   REQUIRE_THAT(ds.mutual_information(0, 1), Catch::Matchers::WithinRel(0.0817042, 1e-5));
   REQUIRE_THAT(ds.mutual_information(0, 2), Catch::Matchers::WithinRel(0.1908745, 1e-5));
+}
+
+// ============================================================================
+// mRMR algorithm tests
+// ============================================================================
+
+TEST_CASE("mrmr cached vs on-the-fly produce identical rankings", "[mrmr]") {
+  std::string str("class\tattr1\tattr2\n0\t0\t1\n0\t1\t1\n0\t0\t0\n1\t1\t1\n1\t0\t1\n1\t1\t1\n");
+  std::stringstream ss1(str);
+  dataset<unsigned char> ds(ss1, dataset<unsigned char>::ROUND);
+
+  // Run with cache (threshold high enough to include all attributes)
+  auto result_cached = mrmr(ds, 0, nullptr, 10000);
+  // Run without cache (threshold = 0 forces on-the-fly)
+  auto result_onthefly = mrmr(ds, 0, nullptr, 0);
+
+  REQUIRE(std::get<0>(result_cached) == std::get<0>(result_onthefly));
+  REQUIRE(std::get<1>(result_cached) == std::get<1>(result_onthefly));
+  REQUIRE(std::get<2>(result_cached) == std::get<2>(result_onthefly));
+  for (std::size_t i = 0; i < std::get<5>(result_cached).size(); ++i) {
+    if (std::isnan(std::get<5>(result_cached)[i])) {
+      REQUIRE(std::isnan(std::get<5>(result_onthefly)[i]));
+    } else {
+      REQUIRE(std::get<5>(result_cached)[i] == std::get<5>(result_onthefly)[i]);
+    }
+  }
+}
+
+TEST_CASE("mrmr with all-constant attributes", "[mrmr]") {
+  // All non-class attributes have zero entropy (constant values)
+  std::vector<unsigned char> data = {0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1};
+  dataset<unsigned char> ds(data, 4, 3, false, {"class", "const1", "const2"},
+                            dataset<unsigned char>::ROUND);
+
+  auto result = mrmr(ds, 0);
+  auto &ranks = std::get<0>(result);
+  auto &indices = std::get<1>(result);
+
+  // Rank 0 is the class attribute
+  REQUIRE(ranks[0] == 0);
+  REQUIRE(indices[0] == 0);
+
+  // All non-class attributes should appear exactly once
+  REQUIRE(ranks.size() == 3);
+
+  // No duplicate ranks
+  std::vector<std::size_t> sorted_ranks(ranks.begin(), ranks.end());
+  std::sort(sorted_ranks.begin(), sorted_ranks.end());
+  for (std::size_t i = 1; i < sorted_ranks.size(); ++i) {
+    REQUIRE(sorted_ranks[i] != sorted_ranks[i - 1]);
+  }
+}
+
+TEST_CASE("mrmr callback receives all ranks", "[mrmr]") {
+  std::string str("class\tattr1\tattr2\n0\t0\t1\n0\t1\t1\n0\t0\t0\n1\t1\t1\n1\t0\t1\n1\t1\t1\n");
+  std::stringstream ss(str);
+  dataset<unsigned char> ds(ss, dataset<unsigned char>::ROUND);
+
+  std::size_t callback_count = 0;
+  auto result = mrmr(ds, 0,
+                     [&callback_count](std::size_t, std::size_t, std::string const &, double,
+                                       double, double) { ++callback_count; });
+
+  REQUIRE(callback_count == ds.num_attributes());
+  REQUIRE(std::get<0>(result).size() == ds.num_attributes());
+}
+
+TEST_CASE("triangular_mi_cache symmetry", "[mrmr]") {
+  std::string str("class\tattr1\tattr2\n0\t0\t1\n0\t1\t1\n0\t0\t0\n1\t1\t1\n1\t0\t1\n1\t1\t1\n");
+  std::stringstream ss(str);
+  dataset<unsigned char> ds(ss, dataset<unsigned char>::ROUND);
+
+  std::vector<std::size_t> indices = {0, 1, 2};
+  triangular_mi_cache<unsigned char> cache(ds, indices);
+
+  // MI(a,b) == MI(b,a)
+  REQUIRE(cache.get(0, 1) == cache.get(1, 0));
+  REQUIRE(cache.get(0, 2) == cache.get(2, 0));
+  REQUIRE(cache.get(1, 2) == cache.get(2, 1));
+
+  // MI(a,a) == 0
+  REQUIRE(cache.get(0, 0) == 0.0);
+  REQUIRE(cache.get(1, 1) == 0.0);
+
+  // Cache matches on-the-fly computation
+  REQUIRE(cache.get(0, 1) == ds.mutual_information(0, 1));
+  REQUIRE(cache.get(0, 2) == ds.mutual_information(0, 2));
+  REQUIRE(cache.get(1, 2) == ds.mutual_information(1, 2));
 }
