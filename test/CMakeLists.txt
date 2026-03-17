@@ -6,12 +6,18 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(Catch2)
 
+list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
+include(Catch)
+
 # --- Unit tests ---
 add_executable(test_mrmr test_mrmr.cpp)
 target_link_libraries(test_mrmr PRIVATE mrmr::mrmr Catch2::Catch2WithMain)
-
-include(Catch)
 catch_discover_tests(test_mrmr)
+
+# --- Benchmarks ---
+add_executable(bench_mrmr bench_mrmr.cpp)
+target_link_libraries(bench_mrmr PRIVATE mrmr::mrmr Catch2::Catch2WithMain)
+target_compile_options(bench_mrmr PRIVATE -O3)
 
 # --- CLI integration tests ---
 set(MRMR_CLI $<TARGET_FILE:mrmr-cli>)

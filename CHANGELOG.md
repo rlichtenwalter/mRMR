@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Gitea Actions CI workflow (build Release/Debug matrix, test, lint)
 - Include guard for mrmr.hpp header
 - CLI file-not-found error handling
+- Catch2 performance benchmarks for dataset construction, mutual information, mRMR feature selection, and cardinality scaling
 
 ### Changed
 - BREAKING: Headers moved to include/mrmr/ subdirectory
