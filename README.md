@@ -16,16 +16,49 @@ Improved mRMR is a re-implementation of the minimum redundancy maximum relevance
 
 ## Building
 
-1. To build, enter project directory and type `make`.
-2. To run from project directory, type `./mrmr -h` to get usage information and additional help.
+```bash
+cmake -B build
+cmake --build build
+```
+
+## Testing
+
+```bash
+ctest --test-dir build --output-on-failure
+```
 
 ## Example Usage
 
 The following two commands are equivalent in effect when run from the project top-level directory.
 
 ```bash
-< example.tsv bin/mrmr
-bin/mrmr -t '\t' -c 1 -d 'truncate' example.tsv
+< example.tsv build/mrmr
+build/mrmr -t '\t' -c 1 -d 'truncate' example.tsv
 ```
 
 Notes: Implemented discretization functionality is minimal. Feature values are expected to be or to discretize to be contiguous integers starting from 0, but this is not currently checked.
+
+## Installation
+
+```bash
+cmake -B build -DCMAKE_INSTALL_PREFIX=/usr/local
+cmake --build build
+cmake --install build
+```
+
+Once installed, use from CMake:
+
+```cmake
+find_package(mrmr REQUIRED)
+target_link_libraries(your_target PRIVATE mrmr::mrmr)
+```
+
+Or via pkg-config:
+
+```bash
+pkg-config --cflags mrmr
+```
+
+## License
+
+GPL-3.0
