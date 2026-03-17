@@ -28,7 +28,15 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <mrmr/typedef.hpp>
 #include <valarray>
 
+// Computes and caches information-theoretic measures for a single attribute.
+// T must be an unsigned integer type with max value <= 255 (typically unsigned char).
+// Input values must be contiguous integers in [0, num_values), as produced by
+// dataset::transpose_and_discretize. Missing values are not supported; the caller
+// must ensure complete data before construction.
 template <typename T> class attribute_information {
+  static_assert(std::numeric_limits<T>::max() <= 255,
+                "attribute_information only supports types with max value <= 255");
+
 public:
   template <typename ForwardIterator>
   attribute_information(ForwardIterator first, ForwardIterator last);
@@ -48,7 +56,7 @@ attribute_information<T>::attribute_information(ForwardIterator first, ForwardIt
   std::size_t count = last - first;
 
   // compute temporary histogram on fast integral type
-  std::array<unsigned int, std::numeric_limits<T>::max()> temp_histogram = {};
+  std::array<unsigned int, std::numeric_limits<T>::max() + 1> temp_histogram = {};
   while (first != last) {
     ++temp_histogram[*first];
     ++first;
@@ -75,7 +83,6 @@ template <typename T> T attribute_information<T>::num_values() const { return _p
 template <typename T> double attribute_information<T>::entropy() const { return _entropy; }
 
 template <typename T> probability attribute_information<T>::marginal_probability(T index) const {
-  //	std::cerr << "index: " << index << " - num_values(): " << num_values() << "\n";
   assert(index < num_values());
   return _pdf[index];
 }

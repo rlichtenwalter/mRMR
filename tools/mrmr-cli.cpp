@@ -19,22 +19,19 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include <chrono>
-#include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
 #include <errno.h>
-#include <forward_list>
 #include <fstream>
 #include <getopt.h>
 #include <iomanip>
 #include <iostream>
 #include <limits>
 #include <list>
-#include <mrmr/dataset.hpp>
+#include <mrmr/mrmr.hpp>
 #include <stack>
 #include <string>
-#include <utility>
 
 #ifndef MRMR_VERSION
 #define MRMR_VERSION "unknown"
@@ -44,7 +41,6 @@ enum verbosity_level : char { QUIET = 0, WARNING = 1, INFO = 2, DEBUG = 3 };
 
 enum message_type : char { STANDARD = 0, START = 1, FINISH = 2 };
 
-char DELIMITER = '\t';
 verbosity_level VERBOSITY = WARNING;
 
 void short_usage(char const *program) {
@@ -101,8 +97,6 @@ void log_message(char const *message, verbosity_level verbosity, message_type mt
 }
 
 int main(int argc, char *argv[]) {
-  // disable I/O sychronization for better I/O performance
-  //	std::ios_base::sync_with_stdio( false );
   std::cout << std::scientific;
   std::cerr << std::scientific;
 
@@ -113,6 +107,7 @@ int main(int argc, char *argv[]) {
   dataset_type::discretization_method discretize = dataset_type::TRUNCATE;
   bool discretization_chosen = false;
   bool just_write = false;
+  char delimiter = '\t';
 
   int c;
   int option_index = 0;
@@ -131,12 +126,12 @@ int main(int argc, char *argv[]) {
     switch (c) {
     case 't':
       if (strcmp(optarg, "\\t") == 0) {
-        DELIMITER = '\t';
+        delimiter = '\t';
       } else if (strlen(optarg) != 1) {
         std::cerr << argv[0] << ":  -t, --delimiter=CHAR  must be a single character\n";
         return 1;
       } else {
-        DELIMITER = optarg[0];
+        delimiter = optarg[0];
       }
       break;
     case 'c':
@@ -210,16 +205,21 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  // read data
+  // Read data
   log_message("Reading and transforming dataset and computing attribute information...", INFO,
               START);
   dataset_type data;
-  if (ifs.is_open()) {
-    log_message("Reading from file...", DEBUG, STANDARD);
-    data = dataset_type(ifs, discretize);
-  } else {
-    log_message("Reading from standard input...", DEBUG, STANDARD);
-    data = dataset_type(std::cin, discretize);
+  try {
+    if (ifs.is_open()) {
+      log_message("Reading from file...", DEBUG, STANDARD);
+      data = dataset_type(ifs, discretize, delimiter);
+    } else {
+      log_message("Reading from standard input...", DEBUG, STANDARD);
+      data = dataset_type(std::cin, discretize, delimiter);
+    }
+  } catch (std::exception const &e) {
+    std::cerr << argv[0] << ": " << e.what() << "\n";
+    return 2;
   }
   log_message("DONE", INFO, FINISH);
 
@@ -228,95 +228,22 @@ int main(int argc, char *argv[]) {
   }
 
   if (just_write) {
-    log_message("Writing dataset out standard output...", INFO, START);
+    log_message("Writing dataset to standard output...", INFO, START);
     std::cout << data;
     log_message("DONE", INFO, FINISH);
     return 0;
   }
 
-  // compute mRMR prerequisites
-  log_message("Calculating mutual information between each attribute and class...", INFO, START);
-  std::vector<double> mutual_informations(data.num_attributes());
-  std::vector<double> redundance(data.num_attributes(), 0.0);
-  std::forward_list<std::size_t> unselected;
-  std::vector<std::size_t> useless;
-  for (std::size_t i = 0; i < data.num_attributes(); ++i) {
-    if (i != class_attribute) {
-      if (data.attribute_entropy(i) > 0) {
-        mutual_informations[i] = data.mutual_information(class_attribute, i);
-        unselected.push_front(i);
-      } else {
-        mutual_informations[i] = 0;
-        useless.push_back(i);
-      }
-    }
-  }
-  unselected.reverse();
-  mutual_informations[class_attribute] = -std::numeric_limits<double>::infinity();
-  log_message("DONE", INFO, FINISH);
-
-  log_message("Performing main mRMR computations...", INFO, START);
-  // output header
+  // Run mRMR with streaming output via callback
+  log_message("Computing mRMR feature ranking...", INFO, START);
   std::cout << "Rank\tIndex\tName\tEntropy\tMutual Information\tmRMR Score\n";
 
-  // output class information
-  double class_entropy = data.attribute_entropy(class_attribute);
-  std::cout << "0\t" << class_attribute << '\t' << data.attribute_name(class_attribute) << '\t'
-            << class_entropy << '\t' << class_entropy << '\t'
-            << std::numeric_limits<double>::quiet_NaN() << std::endl;
-
-  // handle special case of first attribute with highest mutual information
-  std::size_t best_attribute_index =
-      std::max_element(mutual_informations.begin(), mutual_informations.end()) -
-      mutual_informations.begin();
-  std::size_t last_attribute_index = best_attribute_index;
-  unselected.remove(best_attribute_index);
-  double mrmr_score = mutual_informations.at(best_attribute_index);
-  std::cout << "1\t" << best_attribute_index << '\t' << data.attribute_name(best_attribute_index)
-            << '\t' << data.attribute_entropy(best_attribute_index) << '\t' << mrmr_score << '\t'
-            << mrmr_score << std::endl;
-
-  // main mRMR computation loop
-  std::size_t rank = 2;
-  while (!unselected.empty()) {
-    double best_mrmr_score = -std::numeric_limits<double>::infinity();
-    auto it = std::cbegin(unselected);
-    auto last_it = unselected.before_begin();
-    auto erase_it = last_it;
-    while (it != std::cend(unselected)) {
-      std::size_t attribute_index = *it;
-      redundance.at(attribute_index) +=
-          data.mutual_information(last_attribute_index, attribute_index);
-      mrmr_score =
-          mutual_informations.at(attribute_index) - redundance.at(attribute_index) / (rank - 1);
-      if (VERBOSITY >= DEBUG) {
-        std::cerr << "\t\t" << attribute_index << '\t' << data.attribute_name(attribute_index)
-                  << '\t' << data.attribute_entropy(attribute_index) << '\t' << mrmr_score
-                  << std::endl;
-      }
-      if (mrmr_score - best_mrmr_score > std::numeric_limits<double>::epsilon()) {
-        best_mrmr_score = mrmr_score;
-        best_attribute_index = attribute_index;
-        erase_it = last_it;
-      }
-      ++it;
-      ++last_it;
-    }
-    std::cout << rank++ << '\t' << best_attribute_index << '\t'
-              << data.attribute_name(best_attribute_index) << '\t'
-              << data.attribute_entropy(best_attribute_index) << '\t'
-              << mutual_informations.at(best_attribute_index) << '\t' << best_mrmr_score
-              << std::endl;
-    unselected.erase_after(erase_it);
-    last_attribute_index = best_attribute_index;
-  }
-
-  // finish by outputting useless features
-  std::sort(useless.begin(), useless.end());
-  for (auto attribute_index : useless) {
-    std::cout << rank++ << '\t' << attribute_index << '\t' << data.attribute_name(attribute_index)
-              << "\t0\t0\t" << -std::numeric_limits<double>::infinity() << std::endl;
-  }
+  mrmr(data, class_attribute,
+       [](std::size_t rank, std::size_t index, std::string const &name, double entropy, double mi,
+          double score) {
+         std::cout << rank << '\t' << index << '\t' << name << '\t' << entropy << '\t' << mi << '\t'
+                   << score << std::endl;
+       });
 
   log_message("DONE", INFO, FINISH);
 

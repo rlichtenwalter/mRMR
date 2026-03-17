@@ -30,8 +30,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <mrmr/dataset.hpp>
 #include <mrmr/matrix.hpp>
 
-char DELIMITER = '\t';
-
 // ============================================================================
 // attribute_information tests
 // ============================================================================

@@ -22,6 +22,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define MRMR_DATASET_HPP
 
 #include <algorithm>
+#include <cmath>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -31,12 +32,19 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <mrmr/delimiter_ctype.hpp>
 #include <mrmr/matrix.hpp>
 #include <mrmr/typedef.hpp>
+#include <stdexcept>
 #include <valarray>
 #include <vector>
 
-extern char DELIMITER;
-
+// Dataset container for discretized tabular data with cached information-theoretic measures.
+// T must be an unsigned integer type with max value <= 255 (typically unsigned char).
+// Input data must be complete (no missing values). After construction, attribute values are
+// guaranteed to be contiguous integers in [0, k) where k is the number of distinct values.
+// This class is not thread-safe for concurrent mutual_information() calls on the same instance.
 template <typename T> class dataset {
+  static_assert(std::numeric_limits<T>::max() <= 255,
+                "dataset only supports storage types with max value <= 255");
+
   template <typename U> friend std::ostream &operator<<(std::ostream &os, dataset<U> const &m);
 
 private:
@@ -47,11 +55,11 @@ public:
   using value_type = T;
   enum discretization_method : char { ROUND = 0, FLOOR = 1, CEILING = 2, TRUNCATE = 3 };
   dataset();
-  dataset(std::istream &, discretization_method dm = ROUND);
+  dataset(std::istream &, discretization_method dm = ROUND, char delimiter = '\t');
   template <typename U>
   dataset(std::vector<U> data, std::size_t num_instances, std::size_t num_attributes,
           bool column_major = false, std::vector<std::string> names = std::vector<std::string>(),
-          discretization_method dm = ROUND);
+          discretization_method dm = ROUND, char delimiter = '\t');
   std::size_t num_instances() const;
   std::size_t num_attributes() const;
   std::string attribute_name(std::size_t attribute_num) const;
@@ -65,78 +73,92 @@ private:
   std::vector<std::string> _names;
   std::vector<attribute_information<T>> _attr_info;
   matrix<T> _data;
+  char _delimiter;
+  mutable std::vector<std::size_t> _mi_scratch;
 };
 
 template <typename T>
 template <typename U>
 void dataset<T>::transpose_and_discretize(matrix<U> const &temp, discretization_method dm) {
-  // prepare matrix for computation by transposing and performing requested discretization procedure
-  // loop code is not factored out of switch, because some procedures (e.g. z-score) might require
-  // access to the whole attribute, and others might conceivably even require access to the whole
-  // data set IMPORTANT: note that transposing for column-major storage (memory-efficient
-  // per-attribute computations) is being done at the same time below IMPORTANT: note that
-  // attributes are being translated for contiguous unsigned integer storage if unsigned integer
-  // type is used; the minimum value data is collected below
-  _data = matrix<T>(num_attributes(), temp.num_rows());
-  std::vector<itype> minima(num_attributes(), 0);
-  std::vector<itype> maxima(num_attributes(), 0);
-  if (dm == ROUND || dm == FLOOR || dm == CEILING || dm == TRUNCATE) {
-    // for all of these discretization routines, we do not need access to more than one cell at a
-    // time should eventually improve this with better dispatch method
-    for (std::size_t instance_num = 0; instance_num < num_instances(); ++instance_num) {
-      for (std::size_t attribute_num = 0; attribute_num < num_attributes(); ++attribute_num) {
-        itype val;
-        switch (dm) {
-        case ROUND:
-          val = static_cast<itype>(std::round(temp(instance_num, attribute_num)));
-          break;
-        case FLOOR:
-          val = static_cast<itype>(std::floor(temp(instance_num, attribute_num)));
-          break;
-        case CEILING:
-          val = static_cast<itype>(std::ceil(temp(instance_num, attribute_num)));
-          break;
-        case TRUNCATE:
-          val = static_cast<itype>(std::trunc(temp(instance_num, attribute_num)));
-          break;
-        default: // default to TRUNCATE method above
-          val = static_cast<itype>(std::trunc(temp(instance_num, attribute_num)));
-          break;
-        }
-        if (std::abs(val) > std::numeric_limits<T>::max()) {
-          std::cerr << "error: integer overflow detected at line " << instance_num + 2 << " column "
-                    << attribute_num + 1 << " ; contact author\n";
-          exit(2);
-        }
-        if (val < minima[attribute_num]) {
-          minima[attribute_num] = val;
-        }
-        if (val > maxima[attribute_num]) {
-          maxima[attribute_num] = val;
-        }
-        _data(attribute_num, instance_num) = static_cast<T>(val);
+  // Discretize, transpose to column-major storage, translate to non-negative values,
+  // and compact to contiguous unsigned integer indices for efficient histogram computation.
+
+  auto discretize_value = [dm](U value) -> itype {
+    switch (dm) {
+    case ROUND:
+      return static_cast<itype>(std::round(value));
+    case FLOOR:
+      return static_cast<itype>(std::floor(value));
+    case CEILING:
+      return static_cast<itype>(std::ceil(value));
+    case TRUNCATE:
+    default:
+      return static_cast<itype>(std::trunc(value));
+    }
+  };
+
+  std::size_t n_inst = temp.num_rows();
+  std::size_t n_attr = num_attributes();
+
+  // Pass 1: Discretize all values into long intermediates, track min/max per attribute.
+  // Column-major layout (attr * n_inst + inst) for efficient per-attribute processing in pass 2.
+  std::vector<itype> discretized(n_attr * n_inst);
+  std::vector<itype> minima(n_attr, std::numeric_limits<itype>::max());
+  std::vector<itype> maxima(n_attr, std::numeric_limits<itype>::min());
+
+  for (std::size_t inst = 0; inst < n_inst; ++inst) {
+    for (std::size_t attr = 0; attr < n_attr; ++attr) {
+      itype val = discretize_value(temp(inst, attr));
+      discretized[attr * n_inst + inst] = val;
+      if (val < minima[attr]) {
+        minima[attr] = val;
+      }
+      if (val > maxima[attr]) {
+        maxima[attr] = val;
       }
     }
   }
 
-  // check discretization output for representational validity
-  for (std::size_t attribute_num = 0; attribute_num < num_attributes(); ++attribute_num) {
-    if (maxima[attribute_num] - minima[attribute_num] > std::numeric_limits<T>::max()) {
-      std::cerr << "error: attribute '" << attribute_name(attribute_num)
-                << "' cannot be represented within " << std::numeric_limits<T>::max()
-                << " buckets under current discretization; examine attribute and consider "
-                   "implementing custom discretization\n";
-      exit(2);
+  // Range check: each attribute's value span must fit in T after translation.
+  for (std::size_t attr = 0; attr < n_attr; ++attr) {
+    if (minima[attr] > maxima[attr]) {
+      continue; // empty attribute (no instances)
+    }
+    if (maxima[attr] - minima[attr] > std::numeric_limits<T>::max()) {
+      throw std::runtime_error("attribute '" + attribute_name(attr) + "' range (" +
+                               std::to_string(maxima[attr] - minima[attr]) + ") exceeds " +
+                               std::to_string(static_cast<int>(std::numeric_limits<T>::max())) +
+                               " under current discretization");
     }
   }
 
-  // perform translation using minimum value data collected above
-  // IMPORTANT: note that transposition has been finished and storage is now column major, so we can
-  // perform operations most efficiently one attribute at a time
-  for (std::size_t attribute_num = 0; attribute_num < num_attributes(); ++attribute_num) {
-    auto translation = static_cast<T>(-minima[attribute_num]);
-    for (std::size_t instance_num = 0; instance_num < num_instances(); ++instance_num) {
-      _data(attribute_num, instance_num) += translation;
+  // Pass 2: Translate to [0, max-min], then compact non-contiguous values to dense
+  // contiguous indices 0..k-1. Store results in column-major _data matrix.
+  _data = matrix<T>(n_attr, n_inst);
+
+  for (std::size_t attr = 0; attr < n_attr; ++attr) {
+    itype range = maxima[attr] - minima[attr];
+
+    // Build histogram of translated values for this attribute
+    std::vector<unsigned int> histogram(static_cast<std::size_t>(range) + 1, 0);
+    for (std::size_t inst = 0; inst < n_inst; ++inst) {
+      itype translated = discretized[attr * n_inst + inst] - minima[attr];
+      ++histogram[static_cast<std::size_t>(translated)];
+    }
+
+    // Build rank map: maps each populated translated value to a dense index
+    std::vector<T> rank_map(static_cast<std::size_t>(range) + 1, 0);
+    T rank = 0;
+    for (std::size_t v = 0; v <= static_cast<std::size_t>(range); ++v) {
+      if (histogram[v] > 0) {
+        rank_map[v] = rank++;
+      }
+    }
+
+    // Store compacted values
+    for (std::size_t inst = 0; inst < n_inst; ++inst) {
+      itype translated = discretized[attr * n_inst + inst] - minima[attr];
+      _data(attr, inst) = rank_map[static_cast<std::size_t>(translated)];
     }
   }
 }
@@ -151,11 +173,13 @@ template <typename T> void dataset<T>::compute_attribute_information() {
   }
 }
 
-template <typename T> dataset<T>::dataset() : _data(0, 0) {}
+template <typename T> dataset<T>::dataset() : _data(0, 0), _delimiter('\t') {}
 
-template <typename T> dataset<T>::dataset(std::istream &is, discretization_method dm) {
+template <typename T>
+dataset<T>::dataset(std::istream &is, discretization_method dm, char delimiter)
+    : _delimiter(delimiter) {
   // the pointer below is managed via the library interface
-  is.imbue(std::locale(is.getloc(), new delimiter_ctype(DELIMITER)));
+  is.imbue(std::locale(is.getloc(), new delimiter_ctype(_delimiter)));
 
   // read header line with attribute names
   std::string name;
@@ -164,12 +188,12 @@ template <typename T> dataset<T>::dataset(std::istream &is, discretization_metho
     _names.push_back(name);
   }
   if (is.peek() != '\n') {
-    std::cerr << "error: missing required newline after header\n";
-    exit(2);
+    throw std::runtime_error("missing required newline after header");
   }
 
   // read data matrix
   matrix<fptype> temp;
+  temp.set_delimiter(_delimiter);
   is >> temp;
 
   transpose_and_discretize(temp, dm);
@@ -180,8 +204,9 @@ template <typename T> dataset<T>::dataset(std::istream &is, discretization_metho
 template <typename T>
 template <typename U>
 dataset<T>::dataset(std::vector<U> data, std::size_t num_instances, std::size_t num_attributes,
-                    bool column_major, std::vector<std::string> names, discretization_method dm)
-    : _names(std::move(names)) {
+                    bool column_major, std::vector<std::string> names, discretization_method dm,
+                    char delimiter)
+    : _names(std::move(names)), _delimiter(delimiter) {
   if (num_instances * num_attributes != data.size()) {
     throw std::logic_error("data size must equal the product of num_instances and num_attributes");
   }
@@ -195,8 +220,6 @@ dataset<T>::dataset(std::vector<U> data, std::size_t num_instances, std::size_t 
   matrix<T> temp(num_instances, num_attributes);
   for (std::size_t instance_num = 0; instance_num < num_instances; ++instance_num) {
     for (std::size_t attribute_num = 0; attribute_num < num_attributes; ++attribute_num) {
-      // IMPORTANT: note that transposing for column-major storage (memory-efficient per-attribute
-      // computations) is being done at the same time below
       if (column_major) {
         temp(instance_num, attribute_num) = data[attribute_num * num_instances + instance_num];
       } else {
@@ -229,41 +252,41 @@ double dataset<T>::mutual_information(std::size_t attribute1, std::size_t attrib
   if (a1_num_values == 1 || a2_num_values == 1) {
     return 0.0;
   }
-  std::valarray<std::size_t> histogram(static_cast<std::size_t>(0), a1_num_values * a2_num_values);
-  for (std::size_t i = 0; i < num_instances(); ++i) {
-    ++histogram[_data(attribute1, i) * a2_num_values + _data(attribute2, i)];
-  }
-  std::valarray<probability> joint_probabilities(histogram.size());
-  // should be using cbegin and cend but this breaks with some lingering lib versions
-  //	std::copy( std::cbegin( histogram ), std::cend( histogram ), std::begin( joint_probabilities
-  //) );
-  std::copy(std::begin(histogram), std::end(histogram), std::begin(joint_probabilities));
-  joint_probabilities /= static_cast<double>(num_instances());
 
-  double mutual_information = 0.0;
+  // Build joint histogram using reusable scratch buffer
+  std::size_t histogram_size = a1_num_values * a2_num_values;
+  _mi_scratch.assign(histogram_size, 0);
+  for (std::size_t i = 0; i < num_instances(); ++i) {
+    ++_mi_scratch[_data(attribute1, i) * a2_num_values + _data(attribute2, i)];
+  }
+
+  // Compute mutual information directly from integer histogram
+  double inv_n = 1.0 / static_cast<double>(num_instances());
+  double mi = 0.0;
   for (std::size_t i = 0; i < a1_num_values; ++i) {
     for (std::size_t j = 0; j < a2_num_values; ++j) {
-      probability joint_probability = joint_probabilities[i * a2_num_values + j];
-      if (joint_probability != 0) {
-        probability marginal_probability_i = _attr_info.at(attribute1).marginal_probability(i);
-        probability marginal_probability_j = _attr_info.at(attribute2).marginal_probability(j);
-        mutual_information +=
-            joint_probability *
-            std::log2(joint_probability / (marginal_probability_i * marginal_probability_j));
+      std::size_t count = _mi_scratch[i * a2_num_values + j];
+      if (count != 0) {
+        double joint_prob = count * inv_n;
+        probability marginal_i = _attr_info.at(attribute1).marginal_probability(i);
+        probability marginal_j = _attr_info.at(attribute2).marginal_probability(j);
+        mi += joint_prob * std::log2(joint_prob / (marginal_i * marginal_j));
       }
     }
   }
-  return mutual_information;
+  return mi;
 }
 
 template <typename T> std::ostream &operator<<(std::ostream &os, dataset<T> const &data) {
   if (data.num_attributes() > 0) {
     os << data._names.at(0);
     for (std::size_t i = 1; i < data.num_attributes(); ++i) {
-      os << DELIMITER << data._names.at(i);
+      os << data._delimiter << data._names.at(i);
     }
     os << '\n';
-    os << data._data.transpose();
+    matrix<T> transposed = data._data.transpose();
+    transposed.set_delimiter(data._delimiter);
+    transposed.write_to(os);
   }
   return os;
 }

@@ -29,8 +29,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <mrmr/dataset.hpp>
 #include <mrmr/mrmr.hpp>
 
-char DELIMITER = '\t';
-
 // --- Synthetic data generation ---
 
 // Generate a random integer dataset suitable for mRMR.

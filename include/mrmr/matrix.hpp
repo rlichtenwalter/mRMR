@@ -25,14 +25,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <cassert>
 #include <iostream>
 #include <iterator>
+#include <stdexcept>
 #include <valarray>
-
-extern char DELIMITER;
+#include <vector>
 
 template <typename T> class matrix {
   template <typename U> friend bool operator==(matrix<U> const &lhs, matrix<U> const &rhs);
-  template <typename U> friend std::ostream &operator<<(std::ostream &os, matrix<U> const &m);
-  template <typename U> friend std::istream &operator>>(std::istream &is, matrix<U> &m);
 
 public:
   using value_type = T;
@@ -45,10 +43,17 @@ public:
   T &operator()(std::size_t row, std::size_t column);
   matrix<T> transpose() const;
 
+  void set_delimiter(char delim);
+  char delimiter() const;
+
+  void read_from(std::istream &is);
+  void write_to(std::ostream &os) const;
+
 private:
   std::size_t _num_rows;
   std::size_t _num_columns;
   std::valarray<T> _data;
+  char _delimiter = '\t';
 };
 
 template <typename T> matrix<T>::matrix() : matrix(0, 0) {}
@@ -81,12 +86,17 @@ template <typename T> T &matrix<T>::operator()(std::size_t row, std::size_t colu
 
 template <typename T> matrix<T> matrix<T>::transpose() const {
   matrix<T> result(num_columns(), num_rows());
+  result._delimiter = _delimiter;
   for (std::size_t row = 0; row < num_rows(); ++row) {
     result._data[std::slice(row, num_columns(), num_rows())] =
         _data[std::slice(row * num_columns(), num_columns(), 1)];
   }
   return result;
 }
+
+template <typename T> void matrix<T>::set_delimiter(char delim) { _delimiter = delim; }
+
+template <typename T> char matrix<T>::delimiter() const { return _delimiter; }
 
 template <typename T> bool operator==(matrix<T> const &lhs, matrix<T> const &rhs) {
   if (lhs.num_rows() == rhs.num_rows() && lhs.num_columns() == rhs.num_columns()) {
@@ -101,78 +111,81 @@ template <typename T> bool operator==(matrix<T> const &lhs, matrix<T> const &rhs
   }
 }
 
-template <typename T> std::ostream &operator<<(std::ostream &os, matrix<T> const &m) {
-  for (std::size_t row = 0; row < m.num_rows(); ++row) {
+template <typename T> void matrix<T>::write_to(std::ostream &os) const {
+  std::string delim_str(1, _delimiter);
+  for (std::size_t row = 0; row < num_rows(); ++row) {
     if (std::is_same<T, unsigned char>::value) {
-      std::copy(&m._data[row * m.num_columns()], &m._data[(row + 1) * m.num_columns() - 1],
-                std::ostream_iterator<unsigned int>(os, std::string(1, DELIMITER).c_str()));
-      os << static_cast<unsigned int>(m._data[(row + 1) * m.num_columns() - 1]);
+      std::copy(&_data[row * num_columns()], &_data[(row + 1) * num_columns() - 1],
+                std::ostream_iterator<unsigned int>(os, delim_str.c_str()));
+      os << static_cast<unsigned int>(_data[(row + 1) * num_columns() - 1]);
     } else {
-      std::copy(&m._data[row * m.num_columns()], &m._data[(row + 1) * m.num_columns() - 1],
-                std::ostream_iterator<T>(os, std::string(1, DELIMITER).c_str()));
-      os << m._data[(row + 1) * m.num_columns() - 1];
+      std::copy(&_data[row * num_columns()], &_data[(row + 1) * num_columns() - 1],
+                std::ostream_iterator<T>(os, delim_str.c_str()));
+      os << _data[(row + 1) * num_columns() - 1];
     }
     os << '\n';
   }
+}
+
+template <typename T> void matrix<T>::read_from(std::istream &is) {
+  // Parse delimited matrix from stream. Dimensions are determined from the data.
+  // Uses vector for efficient dynamic growth, converts to valarray at end.
+  std::vector<T> buffer;
+  buffer.reserve(256);
+  _num_rows = 0;
+  _num_columns = 0;
+  std::size_t column_num = 0;
+
+  // Read values until EOF
+  T d;
+  while (is >> d) {
+    if (column_num == 0) {
+      ++_num_rows;
+    }
+    if (_num_rows == 1) {
+      _num_columns = column_num + 1;
+    }
+    buffer.push_back(d);
+
+    // Read the separator character following the value
+    char c = is.get();
+    if (c == _delimiter) {
+      ++column_num;
+    } else if (c == '\n') {
+      if (column_num + 1 != _num_columns) {
+        throw std::runtime_error("inconsistent number of columns at matrix row " +
+                                 std::to_string(_num_rows));
+      }
+      column_num = 0;
+    } else if (is.eof()) {
+      // Value was the last in the stream with no trailing separator
+      if (_num_columns > 0 && column_num + 1 != _num_columns) {
+        throw std::runtime_error("inconsistent number of columns at matrix row " +
+                                 std::to_string(_num_rows));
+      }
+      break;
+    } else {
+      throw std::runtime_error("unexpected character after value at row " +
+                               std::to_string(_num_rows));
+    }
+
+    // Peek to detect EOF before the next extraction attempt
+    is.peek();
+  }
+
+  // Convert buffer to valarray for slice-based operations (transpose)
+  _data.resize(buffer.size());
+  std::copy(buffer.begin(), buffer.end(), std::begin(_data));
+}
+
+// Convenience stream operators that delegate to member functions
+template <typename T> std::ostream &operator<<(std::ostream &os, matrix<T> const &m) {
+  m.write_to(os);
   return os;
 }
 
 template <typename T> std::istream &operator>>(std::istream &is, matrix<T> &m) {
-  m._num_rows = 0;
-  m._num_columns = 0;
-  if (m._data.size() == 0) {
-    m._data.resize(256);
-  }
-  std::size_t column_num = 0;
-  while (!is.eof()) {
-    T d;
-    is >> d;
-    if (column_num == 0) {
-      ++m._num_rows;
-    }
-    if (m.num_rows() == 1) {
-      m._num_columns = column_num + 1;
-    }
-    if ((m.num_rows() - 1) * m.num_columns() + column_num >= m._data.size()) {
-      std::valarray<T> temp;
-      if (m.num_rows() == 1) {
-        temp.resize(2 * m._data.size());
-      } else {
-        temp.resize(2 * m.num_rows() * m.num_columns());
-      }
-      // should be using cbegin and cend, but this breaks with some lingering lib versions
-      //			std::copy( std::cbegin( m._data ), std::cend( m._data ), std::begin(
-      //temp ) );
-      std::copy(std::begin(m._data), std::end(m._data), std::begin(temp));
-      m._data = std::move(temp);
-    }
-    m(m.num_rows() - 1, column_num) = d;
-    char c = is.get();
-    if (c == DELIMITER) {
-      ++column_num;
-    } else if (c == '\n') {
-      if (column_num + 1 == m.num_columns()) {
-        column_num = 0;
-      } else {
-        std::cerr << "error: inconsistent number of columns at matrix row " << m.num_rows() << "\n";
-        exit(2);
-      }
-    } else {
-      std::cerr << "error: invalid value '" << d << c << "' at line " << m.num_rows() << "\n";
-      exit(2);
-    }
-    is.peek();
-  }
-  if (m.num_rows() * m.num_columns() < m._data.size()) {
-    std::valarray<T> temp;
-    temp.resize(m.num_rows() * m.num_columns());
-    // should be using cbegin and cend, but this breaks with some lingering lib versions
-    //		std::copy( std::cbegin( m._data ), std::cbegin( m._data ) + m.num_rows() *
-    //m.num_columns(), std::begin( temp ) );
-    std::copy(std::begin(m._data), std::begin(m._data) + m.num_rows() * m.num_columns(),
-              std::begin(temp));
-    m._data = std::move(temp);
-  }
+  m.read_from(is);
   return is;
 }
 
