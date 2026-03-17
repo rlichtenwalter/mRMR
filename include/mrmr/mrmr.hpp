@@ -34,34 +34,69 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <utility>
 #include <vector>
 
-// Return type for mRMR call: tuple containing vectors of
-// (ranks, attribute_indices, attribute_names, entropies, mutual_informations, mrmr_scores)
+/**
+ * @brief Return type for a complete mRMR feature ranking.
+ *
+ * A tuple of six parallel vectors, each with one entry per ranked attribute:
+ * - [0] ranks           — 0-based rank positions (0 = class attribute).
+ * - [1] attribute indices — original attribute column indices in the dataset.
+ * - [2] attribute names  — attribute name strings.
+ * - [3] entropies        — Shannon entropy of each attribute in bits.
+ * - [4] mutual_informations — MI with the class attribute in bits.
+ * - [5] mrmr_scores      — final mRMR relevance-minus-redundancy score.
+ */
 using mrmr_return_type =
     std::tuple<std::vector<std::size_t>, std::vector<std::size_t>, std::vector<std::string>,
                std::vector<double>, std::vector<double>, std::vector<double>>;
 
-// Optional callback invoked after each rank is computed. Enables streaming output
-// without buffering all results. Parameters: rank, attribute_index, name, entropy, mi, score.
+/**
+ * @brief Optional callback invoked once per ranked attribute during mRMR selection.
+ *
+ * Enables streaming output of results without buffering the full return tuple.
+ * The parameters correspond to: rank, attribute_index, name, entropy,
+ * mutual_information_with_class, mrmr_score.
+ */
 using mrmr_rank_callback =
     std::function<void(std::size_t, std::size_t, std::string const &, double, double, double)>;
 
-// Default threshold for precomputing the pairwise MI cache. When the number of
-// useful (positive-entropy) attributes is at or below this value, all pairwise MI
-// values are precomputed into a triangular cache for O(1) lookup during the
-// selection loop. Above this threshold, MI is computed on-the-fly per pair to
-// avoid O(M^2) memory consumption — critical for datasets with millions of attributes.
-// At the default of 5000, the cache uses ~95MB (5000*4999/2 * 8 bytes).
+/**
+ * @brief Default threshold for precomputing the pairwise MI cache.
+ *
+ * When the number of useful (positive-entropy) attributes M is at or below this
+ * value, all M*(M-1)/2 pairwise MI values are precomputed into a triangular cache
+ * for O(1) lookup during the selection loop. Above this threshold, MI is computed
+ * on-the-fly per pair to avoid O(M^2) memory consumption — critical for datasets
+ * with millions of attributes. At the default of 5000, the cache uses approximately
+ * 95 MB (5000 * 4999 / 2 * 8 bytes).
+ */
 constexpr std::size_t MRMR_DEFAULT_CACHE_THRESHOLD = 5000;
 
-// Precomputed upper-triangular pairwise MI cache for efficient lookup.
-// Maps original attribute indices to a dense index space, then stores MI values
-// in a flat vector using triangular indexing. MI(X,Y) = MI(Y,X) so only
-// the upper triangle is stored, halving memory relative to a full matrix.
-// Only indices passed to the constructor via attr_indices may be used with get().
+/**
+ * @brief Precomputed upper-triangular pairwise MI cache for efficient O(1) lookup.
+ *
+ * Maps original attribute indices to a dense index space, then stores MI values
+ * in a flat vector using triangular indexing. Because MI(X, Y) == MI(Y, X), only
+ * the upper triangle is stored, halving memory relative to a full matrix. Only
+ * indices passed to the constructor via @p attr_indices may be used with get().
+ *
+ * @tparam T Element storage type of the source dataset.
+ */
 template <typename T> class triangular_mi_cache {
   static constexpr std::size_t UNMAPPED = std::numeric_limits<std::size_t>::max();
 
 public:
+  /**
+   * @brief Construct the cache by precomputing all pairwise MI values.
+   *
+   * Builds a mapping from original attribute indices to dense indices and
+   * precomputes MI for every unique pair (i, j) with i < j.
+   *
+   * @param data         Dataset providing the mutual_information() method.
+   * @param attr_indices Indices of the attributes to cache; must be valid
+   *                     indices into @p data.
+   * @throws std::length_error If attr_indices.size() is too large for
+   *                           triangular indexing with std::size_t arithmetic.
+   */
   triangular_mi_cache(dataset<T> const &data, std::vector<std::size_t> const &attr_indices)
       : _m(attr_indices.size()) {
     // Guard against overflow in triangular indexing for very large M
@@ -88,6 +123,16 @@ public:
     }
   }
 
+  /**
+   * @brief Return the precomputed MI between two attributes.
+   *
+   * Both @p a1 and @p a2 must have been included in @p attr_indices at
+   * construction time. Returns 0 when @p a1 == @p a2.
+   *
+   * @param a1 Original attribute index of the first attribute.
+   * @param a2 Original attribute index of the second attribute.
+   * @return Precomputed mutual information I(a1; a2) >= 0.
+   */
   double get(std::size_t a1, std::size_t a2) const {
     assert(a1 < _to_dense.size() && _to_dense[a1] != UNMAPPED);
     assert(a2 < _to_dense.size() && _to_dense[a2] != UNMAPPED);
@@ -112,9 +157,28 @@ private:
   std::vector<double> _cache;
 };
 
-// Core mRMR selection loop, templated on the MI lookup callable to allow
-// compile-time specialization for both cached (O(1)) and on-the-fly (O(N))
-// MI computation without runtime dispatch overhead in the hot loop.
+/**
+ * @brief Core mRMR selection loop, templated on the MI lookup callable.
+ *
+ * Iteratively selects the unselected attribute with the highest
+ * relevance-minus-redundancy score until no unselected attributes remain.
+ * Templating on @p MILookup allows compile-time specialization for both cached
+ * (O(1)) and on-the-fly (O(N)) MI computation without runtime dispatch overhead
+ * in the hot loop.
+ *
+ * @tparam MILookup    Callable with signature double(size_t, size_t) returning
+ *                     MI between two attribute indices.
+ * @tparam OnSelected  Callable with signature void(size_t rank, size_t attr_index,
+ *                     double mrmr_score) invoked after each selection.
+ * @param mutual_informations  Per-attribute MI with the class (indexed by attribute index).
+ * @param redundance           Accumulated redundance accumulator (updated in-place).
+ * @param unselected           Forward list of attribute indices not yet selected
+ *                             (modified in-place; selected attribute is erased).
+ * @param last_attribute_index Index of the most recently selected attribute.
+ * @param start_rank           Rank value assigned to the first selection in this call.
+ * @param get_mi               MI lookup callable.
+ * @param on_selected          Callback invoked once per selected attribute.
+ */
 template <typename MILookup, typename OnSelected>
 void mrmr_selection_loop(std::vector<double> const &mutual_informations,
                          std::vector<double> &redundance,
@@ -150,16 +214,31 @@ void mrmr_selection_loop(std::vector<double> const &mutual_informations,
   }
 }
 
-// Compute mRMR feature ranking.
-//
-// MI caching strategy is selected dynamically based on the number of useful
-// (positive-entropy) attributes M:
-// - M <= cache_threshold (default 5000): precompute all M*(M-1)/2 pairwise MI
-//   values into a triangular cache. The selection loop then does O(1) lookups.
-//   At threshold 5000 this uses ~95MB.
-// - M > cache_threshold: compute MI on-the-fly per pair (O(N) each) using the
-//   reusable scratch buffer in dataset. Essential for very wide datasets
-//   (millions of attributes) where O(M^2) memory is infeasible.
+/**
+ * @brief Compute a complete mRMR feature ranking for the given dataset.
+ *
+ * Ranks all non-class attributes by their minimum-Redundancy Maximum-Relevance
+ * score. The class attribute is emitted at rank 0. Attributes with zero entropy
+ * (constant values) are ranked last with a score of -infinity.
+ *
+ * The MI caching strategy is selected dynamically based on the number of useful
+ * (positive-entropy) attributes M:
+ * - M <= @p cache_threshold: precompute all M*(M-1)/2 pairwise MI values into a
+ *   triangular cache. The selection loop then performs O(1) lookups. At the
+ *   default threshold of 5000 this uses approximately 95 MB.
+ * - M > @p cache_threshold: compute MI on-the-fly per pair (O(N) each) using the
+ *   reusable scratch buffer in dataset. Essential for very wide datasets
+ *   (millions of attributes) where O(M^2) memory is infeasible.
+ *
+ * @tparam T Element storage type of the dataset (typically unsigned char).
+ * @param data                  Dataset to rank.
+ * @param class_attribute_index Index of the class attribute within the dataset.
+ * @param on_rank               Optional callback invoked once per ranked attribute;
+ *                              pass nullptr to disable streaming output.
+ * @param cache_threshold       Maximum number of useful attributes for which the
+ *                              triangular MI cache is precomputed.
+ * @return mrmr_return_type containing six parallel vectors of per-rank metadata.
+ */
 template <typename T>
 mrmr_return_type mrmr(dataset<T> const &data, std::size_t class_attribute_index,
                       mrmr_rank_callback const &on_rank = nullptr,

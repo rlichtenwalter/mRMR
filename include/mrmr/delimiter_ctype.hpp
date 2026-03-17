@@ -25,12 +25,49 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <locale>
 #include <string>
 
+/**
+ * @brief A std::ctype<char> facet that treats specified characters as whitespace delimiters.
+ *
+ * Replaces the classic locale's whitespace classification so that only the
+ * provided delimiter characters (and newline) are treated as field separators
+ * during stream extraction. This enables std::istream to tokenize delimited
+ * files (e.g., CSV or TSV) using the standard >> operator.
+ */
 class delimiter_ctype : public std::ctype<char> {
 public:
+  /**
+   * @brief Construct a facet with a single delimiter character.
+   *
+   * Newline is always treated as a separator in addition to @p delimiter.
+   *
+   * @param delimiter The character to treat as a field separator.
+   * @param refs      Reference count passed to std::locale::facet base.
+   */
   delimiter_ctype(char delimiter, std::size_t refs = 0);
+
+  /**
+   * @brief Construct a facet with a string of delimiter characters.
+   *
+   * Every character in @p delimiters is treated as a field separator.
+   * Newline is always treated as a separator as well.
+   *
+   * @param delimiters String of characters each of which acts as a separator.
+   * @param refs       Reference count passed to std::locale::facet base.
+   */
   delimiter_ctype(std::string delimiters, std::size_t refs = 0);
 
 private:
+  /**
+   * @brief Build a ctype classification table that marks the given characters as whitespace.
+   *
+   * Starts from the classic table, strips the space classification from all
+   * characters, then re-applies it to each character in @p delimiters and to
+   * newline. Ownership of the returned heap-allocated array is transferred to
+   * the std::ctype<char> base, which deletes it when the facet is destroyed.
+   *
+   * @param delimiters String of characters to classify as whitespace.
+   * @return Pointer to a newly allocated classification table of size table_size.
+   */
   static mask const *make_table(std::string delimiters);
 };
 

@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   based on attribute count (precompute for M <= 5000, on-the-fly for larger datasets)
 - Unit tests for mRMR algorithm: cached vs on-the-fly equivalence, all-constant
   attributes edge case, callback invocation, triangular cache symmetry
+- Doxygen-compatible docstrings (LLVM style) for all public API elements
 
 ### Changed
 - BREAKING: Headers moved to include/mrmr/ subdirectory

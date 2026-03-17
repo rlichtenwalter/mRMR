@@ -28,20 +28,49 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <mrmr/typedef.hpp>
 #include <valarray>
 
-// Computes and caches information-theoretic measures for a single attribute.
-// T must be an unsigned integer type with max value <= 255 (typically unsigned char).
-// Input values must be contiguous integers in [0, num_values), as produced by
-// dataset::transpose_and_discretize. Missing values are not supported; the caller
-// must ensure complete data before construction.
+/**
+ * @brief Computes and caches information-theoretic measures for a single attribute.
+ *
+ * Accepts a range of discretized values and precomputes the marginal probability
+ * distribution and Shannon entropy for efficient repeated lookup. Input values
+ * must be contiguous integers in [0, num_values), as produced by
+ * dataset::transpose_and_discretize. Missing values are not supported; the caller
+ * must ensure complete data before construction.
+ *
+ * @tparam T Unsigned integer type for attribute values. Must have
+ *           std::numeric_limits<T>::max() <= 255 (typically unsigned char).
+ */
 template <typename T> class attribute_information {
   static_assert(std::numeric_limits<T>::max() <= 255,
                 "attribute_information only supports types with max value <= 255");
 
 public:
+  /**
+   * @brief Construct from a range of discretized attribute values.
+   *
+   * Computes the marginal probability distribution and Shannon entropy over
+   * all values in [first, last). The range must be non-empty and values must
+   * be contiguous integers in [0, k) for some k <= std::numeric_limits<T>::max().
+   *
+   * @tparam ForwardIterator Iterator type satisfying ForwardIterator requirements.
+   * @param first Iterator to the first element of the attribute value range.
+   * @param last  Iterator one past the last element of the attribute value range.
+   */
   template <typename ForwardIterator>
   attribute_information(ForwardIterator first, ForwardIterator last);
+
+  /** @brief Return the number of distinct values observed for this attribute. */
   T num_values() const;
+
+  /** @brief Return the Shannon entropy of this attribute in bits. */
   double entropy() const;
+
+  /**
+   * @brief Return the marginal probability of a given value index.
+   *
+   * @param index Dense value index in [0, num_values()).
+   * @return Marginal probability P(X = index).
+   */
   probability marginal_probability(T index) const;
 
 private:
