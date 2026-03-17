@@ -17,20 +17,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Include guard for mrmr.hpp header
 - CLI file-not-found error handling
 - Catch2 performance benchmarks for dataset construction, mutual information, mRMR feature selection, and cardinality scaling
+- Optional callback parameter to mrmr() for streaming per-rank output
+- static_assert constraining storage type T to max value <= 255
+- Value compaction pass ensuring contiguous attribute indices after discretization
 
 ### Changed
 - BREAKING: Headers moved to include/mrmr/ subdirectory
 - BREAKING: Replaced Makefile with CMake
+- BREAKING: dataset constructor now takes delimiter parameter instead of using global variable
 - CLI tool moved from src/ to tools/
 - CLI version string now read from VERSION file via CMake
+- CLI now uses library mrmr() function with callback instead of inline algorithm
 - Normalized include guard naming convention (MRMR_ prefix)
 - All source files formatted with clang-format (LLVM style, 100 column limit)
 - Mark delimiter_ctype non-template member functions as inline for ODR safety
-- Move DELIMITER global variable definition out of header into each binary source
+- Restructure discretization pipeline: compute min/max first, then translate and compact
+- Mutual information computation uses reusable scratch buffer (mutable member) and inline probability calculation
+- Matrix parser uses vector for dynamic growth, throws exceptions instead of exit()
+- Matrix I/O uses member delimiter instead of global variable
 
 ### Fixed
 - Fix delimiter_ctype::make_table iterate-by-value bug that failed to clear previous space bits
 - Preserve newline as whitespace in custom delimiter locale for correct header parsing
+- Fix histogram array off-by-one (max() → max() + 1) in attribute_information
+- Fix non-contiguous attribute value handling that caused buffer overruns in mutual_information
+- Fix matrix parser EOF handling (replace while(!is.eof()) with read-then-check pattern)
+- Eliminate global mutable DELIMITER state; delimiter is now per-dataset instance
+- Eliminate duplicated mRMR algorithm in CLI (was diverging from library implementation)
 
 ## [0.9.3] - 2020-12-07
 

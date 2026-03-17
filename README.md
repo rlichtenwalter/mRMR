@@ -36,7 +36,7 @@ The following two commands are equivalent in effect when run from the project to
 build/mrmr -t '\t' -c 1 -d 'truncate' example.tsv
 ```
 
-Notes: Implemented discretization functionality is minimal. Feature values are expected to be or to discretize to be contiguous integers starting from 0, but this is not currently checked.
+Notes: Input data must be complete (no missing values). After discretization, attribute values are automatically compacted to contiguous integers starting from 0.
 
 ## Installation
 

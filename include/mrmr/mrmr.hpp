@@ -21,30 +21,30 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef MRMR_MRMR_HPP
 #define MRMR_MRMR_HPP
 
+#include <algorithm>
 #include <cmath>
-#include <cstdlib>
 #include <forward_list>
+#include <functional>
 #include <limits>
-#include <list>
 #include <mrmr/dataset.hpp>
-#include <stack>
 #include <string>
-#include <utility>
+#include <tuple>
+#include <vector>
 
-// return type for mRMR call is tuple containing:
-// 1. Ranks
-// 2. Attribute Indices (0-indexed)
-// 3. Attribute Names
-// 4. Attribute Entropies
-// 5. Mutual Informations with Class Attribute
-// 6. mRMR Scores
+// Return type for mRMR call: tuple containing vectors of
+// (ranks, attribute_indices, attribute_names, entropies, mutual_informations, mrmr_scores)
 using mrmr_return_type =
     std::tuple<std::vector<std::size_t>, std::vector<std::size_t>, std::vector<std::string>,
                std::vector<double>, std::vector<double>, std::vector<double>>;
 
+// Optional callback invoked after each rank is computed. Enables streaming output
+// without buffering all results. Parameters: rank, attribute_index, name, entropy, mi, score.
+using mrmr_rank_callback =
+    std::function<void(std::size_t, std::size_t, std::string const &, double, double, double)>;
+
 template <typename T>
-mrmr_return_type mrmr(dataset<T> const &data, std::size_t class_attribute_index) {
-  using dataset_type = dataset<T>;
+mrmr_return_type mrmr(dataset<T> const &data, std::size_t class_attribute_index,
+                      mrmr_rank_callback on_rank = nullptr) {
 
   mrmr_return_type retval;
   std::get<0>(retval).reserve(data.num_attributes());
@@ -54,7 +54,21 @@ mrmr_return_type mrmr(dataset<T> const &data, std::size_t class_attribute_index)
   std::get<4>(retval).reserve(data.num_attributes());
   std::get<5>(retval).reserve(data.num_attributes());
 
-  // compute mRMR prerequisites
+  // Helper to record a rank and optionally invoke the callback
+  auto emit_rank = [&](std::size_t rank, std::size_t index, std::string const &name, double entropy,
+                       double mi, double score) {
+    std::get<0>(retval).push_back(rank);
+    std::get<1>(retval).push_back(index);
+    std::get<2>(retval).push_back(name);
+    std::get<3>(retval).push_back(entropy);
+    std::get<4>(retval).push_back(mi);
+    std::get<5>(retval).push_back(score);
+    if (on_rank) {
+      on_rank(rank, index, name, entropy, mi, score);
+    }
+  };
+
+  // Compute mRMR prerequisites
   std::vector<double> mutual_informations(data.num_attributes());
   std::vector<double> redundance(data.num_attributes(), 0.0);
   std::forward_list<std::size_t> unselected;
@@ -73,17 +87,16 @@ mrmr_return_type mrmr(dataset<T> const &data, std::size_t class_attribute_index)
   unselected.reverse();
   mutual_informations[class_attribute_index] = -std::numeric_limits<double>::infinity();
 
-  // output class information
+  // Emit class attribute information (rank 0)
   double class_entropy = data.attribute_entropy(class_attribute_index);
+  emit_rank(0, class_attribute_index, data.attribute_name(class_attribute_index), class_entropy,
+            class_entropy, std::numeric_limits<double>::quiet_NaN());
 
-  std::get<0>(retval).push_back(0);
-  std::get<1>(retval).push_back(class_attribute_index);
-  std::get<2>(retval).push_back(data.attribute_name(class_attribute_index));
-  std::get<3>(retval).push_back(class_entropy);
-  std::get<4>(retval).push_back(class_entropy);
-  std::get<5>(retval).push_back(std::numeric_limits<double>::quiet_NaN());
-
-  // handle special case of first attribute with highest mutual information
+  // Handle special case of first attribute with highest mutual information.
+  // Note: when all non-class attributes have zero MI with the class (degenerate case),
+  // the selection among tied zero-MI attributes is arbitrary. This is defensible since
+  // all candidates are equally uninformative. Subsequent redundance computation is
+  // unaffected because MI with any zero-entropy attribute is 0.
   std::size_t best_attribute_index =
       std::max_element(mutual_informations.begin(), mutual_informations.end()) -
       mutual_informations.begin();
@@ -91,14 +104,10 @@ mrmr_return_type mrmr(dataset<T> const &data, std::size_t class_attribute_index)
   unselected.remove(best_attribute_index);
   double mrmr_score = mutual_informations.at(best_attribute_index);
 
-  std::get<0>(retval).push_back(1);
-  std::get<1>(retval).push_back(best_attribute_index);
-  std::get<2>(retval).push_back(data.attribute_name(best_attribute_index));
-  std::get<3>(retval).push_back(data.attribute_entropy(best_attribute_index));
-  std::get<4>(retval).push_back(mrmr_score);
-  std::get<5>(retval).push_back(mrmr_score);
+  emit_rank(1, best_attribute_index, data.attribute_name(best_attribute_index),
+            data.attribute_entropy(best_attribute_index), mrmr_score, mrmr_score);
 
-  // main mRMR computation loop
+  // Main mRMR computation loop
   std::size_t rank = 2;
   while (!unselected.empty()) {
     double best_mrmr_score = -std::numeric_limits<double>::infinity();
@@ -120,26 +129,19 @@ mrmr_return_type mrmr(dataset<T> const &data, std::size_t class_attribute_index)
       ++last_it;
     }
 
-    std::get<0>(retval).push_back(rank++);
-    std::get<1>(retval).push_back(best_attribute_index);
-    std::get<2>(retval).push_back(data.attribute_name(best_attribute_index));
-    std::get<3>(retval).push_back(data.attribute_entropy(best_attribute_index));
-    std::get<4>(retval).push_back(mutual_informations.at(best_attribute_index));
-    std::get<5>(retval).push_back(best_mrmr_score);
+    emit_rank(rank++, best_attribute_index, data.attribute_name(best_attribute_index),
+              data.attribute_entropy(best_attribute_index),
+              mutual_informations.at(best_attribute_index), best_mrmr_score);
 
     unselected.erase_after(erase_it);
     last_attribute_index = best_attribute_index;
   }
 
-  // finish by outputting useless features
+  // Append useless features (zero-entropy attributes)
   std::sort(useless.begin(), useless.end());
   for (auto attribute_index : useless) {
-    std::get<0>(retval).push_back(rank++);
-    std::get<1>(retval).push_back(attribute_index);
-    std::get<2>(retval).push_back(data.attribute_name(attribute_index));
-    std::get<3>(retval).push_back(0);
-    std::get<4>(retval).push_back(0);
-    std::get<5>(retval).push_back(-std::numeric_limits<double>::infinity());
+    emit_rank(rank++, attribute_index, data.attribute_name(attribute_index), 0, 0,
+              -std::numeric_limits<double>::infinity());
   }
 
   return retval;
