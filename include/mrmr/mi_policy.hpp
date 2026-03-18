@@ -173,13 +173,22 @@ double compute_mi(DataSource const &data,
     return 0.0;
   }
 
-  // Build joint histogram using local scratch buffer
-  // Note: thread_local was considered but causes destruction-order issues at program exit
-  // when multiple template instantiations exist. Per-call allocation is acceptable because
-  // the histogram is small (typically < 64KB) and the MI computation dominates runtime.
+  // Per-thread reusable scratch buffer for histogram construction.
+  // Intentionally leaked (allocated via new, never freed) to avoid static destruction
+  // order issues with thread_local in template functions across multiple instantiations.
+  // The process reclaims all memory at exit. This is a standard pattern for thread-local
+  // caches in header-only libraries (cf. Google C++ Style Guide, Abseil NoDestructor,
+  // folly SingletonThreadLocal).
+  //
+  // Each template instantiation (DataSource x Policy) gets its own independent
+  // thread-local buffer. After warmup, the buffer is reused via resize + fill
+  // with zero heap allocation.
+  using histogram_type = typename Policy::histogram_type;
+  static thread_local auto *scratch_ptr = new std::vector<histogram_type>();
+  auto &scratch = *scratch_ptr;
   std::size_t histogram_size = a1_num_values * a2_num_values;
-  std::vector<typename Policy::histogram_type> scratch(histogram_size,
-                                                       typename Policy::histogram_type{});
+  scratch.resize(histogram_size);
+  std::fill(scratch.begin(), scratch.end(), histogram_type{});
 
   for (std::size_t i = 0; i < data.num_instances(); ++i) {
     if (policy.include(i)) {
