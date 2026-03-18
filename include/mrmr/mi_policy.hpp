@@ -24,6 +24,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <cmath>
 #include <cstddef>
 #include <mrmr/attribute_information.hpp>
+#include <mrmr/missing.hpp>
 #include <vector>
 
 /**
@@ -79,6 +80,54 @@ struct weighted_policy {
 
   /** @brief Convert accumulated weight to probability by dividing by total weight. */
   double normalize(histogram_type count, double /*inv_n*/) const { return count / total_weight; }
+};
+
+/**
+ * @brief MI accumulation policy for pairwise-complete observations.
+ *
+ * Skips instances where either attribute has a missing value (sentinel value 255
+ * for unsigned char). Uses integer histogram like unweighted_policy. The effective
+ * sample size is tracked and used for normalization.
+ *
+ * This implements the "pairwise deletion" approach used in mRMRe: for each MI(X,Y)
+ * computation, only instances where both X and Y are observed contribute.
+ * Different MI pairs may use different effective sample sizes.
+ *
+ * @tparam T Value type (must match the dataset's value_type).
+ */
+template <typename T> struct pairwise_complete_policy {
+  using histogram_type = std::size_t;
+
+  T const *col1;
+  T const *col2;
+  mutable std::size_t effective_n;
+
+  /**
+   * @brief Construct from two column pointers.
+   * @param c1 Pointer to first attribute column data.
+   * @param c2 Pointer to second attribute column data.
+   */
+  pairwise_complete_policy(T const *c1, T const *c2) : col1(c1), col2(c2), effective_n(0) {}
+
+  /** @brief Include only instances where both attributes are observed (not missing). */
+  bool include(std::size_t inst) const {
+    bool ok = !is_missing(col1[inst]) && !is_missing(col2[inst]);
+    if (ok) {
+      ++effective_n;
+    }
+    return ok;
+  }
+
+  /** @brief Increment histogram bin by 1 (integer, same as unweighted). */
+  void accumulate(histogram_type &cell, std::size_t /*inst*/) const { ++cell; }
+
+  /** @brief Normalize by effective N (the count of complete pairs). */
+  double normalize(histogram_type count, double /*inv_n*/) const {
+    if (effective_n == 0) {
+      return 0.0;
+    }
+    return static_cast<double>(count) / static_cast<double>(effective_n);
+  }
 };
 
 /**

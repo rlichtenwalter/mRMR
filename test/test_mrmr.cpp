@@ -30,6 +30,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <mrmr/dataset.hpp>
 #include <mrmr/dataset_view.hpp>
 #include <mrmr/matrix.hpp>
+#include <mrmr/missing.hpp>
 #include <mrmr/mrmr.hpp>
 #include <mrmr/mrmre.hpp>
 
@@ -308,4 +309,52 @@ TEST_CASE("mrmr on bootstrap view produces valid ranking", "[mrmre]") {
   REQUIRE(ranks.size() == view.num_attributes());
   REQUIRE(ranks[0] == 0);   // rank 0 is class
   REQUIRE(indices[0] == 0); // class attribute index
+}
+
+// ============================================================================
+// Missing value tests
+// ============================================================================
+
+TEST_CASE("missing sentinel value", "[missing]") {
+  REQUIRE(missing_sentinel<unsigned char>::value == 255);
+  REQUIRE(is_missing<unsigned char>(255));
+  REQUIRE(!is_missing<unsigned char>(0));
+  REQUIRE(!is_missing<unsigned char>(254));
+}
+
+TEST_CASE("impute_mode replaces missing with most frequent value", "[missing]") {
+  // 3 attributes, 5 instances, column-major
+  // attr 0: [0, 1, 0, MISSING, 0]  → mode = 0
+  // attr 1: [1, 1, 2, 2, MISSING]  → mode = 1 or 2 (first found)
+  // attr 2: [3, 3, 3, 3, 3]        → no missing
+  std::vector<unsigned char> data = {0, 1, 0, 255, 0, 1, 1, 2, 2, 255, 3, 3, 3, 3, 3};
+  impute_mode(data.data(), 3, 5);
+
+  REQUIRE(data[3] == 0);   // attr 0, inst 3: was missing → mode = 0
+  REQUIRE(data[9] != 255); // attr 1, inst 4: was missing → imputed
+  // attr 2 unchanged
+  REQUIRE(data[10] == 3);
+  REQUIRE(data[14] == 3);
+}
+
+TEST_CASE("impute_median replaces missing with median", "[missing]") {
+  // attr 0: [0, 2, 4, MISSING, 6] → sorted non-missing = [0, 2, 4, 6], median = 4
+  std::vector<unsigned char> data = {0, 2, 4, 255, 6};
+  impute_median(data.data(), 1, 5);
+  REQUIRE(data[3] == 4); // median of [0, 2, 4, 6] = values[2] = 4
+}
+
+TEST_CASE("impute_mean replaces missing with rounded mean", "[missing]") {
+  // attr 0: [1, 2, 3, MISSING] → mean = 2.0, rounded = 2
+  std::vector<unsigned char> data = {1, 2, 3, 255};
+  impute_mean(data.data(), 1, 4);
+  REQUIRE(data[3] == 2);
+}
+
+TEST_CASE("count_missing identifies missing values per attribute", "[missing]") {
+  // attr 0: no missing, attr 1: 2 missing
+  std::vector<unsigned char> data = {0, 1, 2, 3, 255, 1, 255, 3};
+  auto counts = count_missing(data.data(), 2, 4);
+  REQUIRE(counts[0] == 0);
+  REQUIRE(counts[1] == 2);
 }
