@@ -31,6 +31,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <mrmr/attribute_information.hpp>
 #include <mrmr/delimiter_ctype.hpp>
 #include <mrmr/matrix.hpp>
+#include <mrmr/mi_policy.hpp>
 #include <mrmr/typedef.hpp>
 #include <stdexcept>
 #include <valarray>
@@ -56,6 +57,7 @@ template <typename T> class dataset {
                 "dataset only supports storage types with max value <= 255");
 
   template <typename U> friend std::ostream &operator<<(std::ostream &os, dataset<U> const &m);
+  template <typename U> friend class dataset_view;
 
 private:
   using itype = long;
@@ -141,15 +143,24 @@ public:
   /**
    * @brief Compute the mutual information between two attributes.
    *
-   * Uses precomputed marginal probabilities and a reusable internal scratch
+   * Uses precomputed marginal probabilities and a thread-local scratch
    * buffer to build the joint histogram. Returns 0 if either attribute has
-   * only one distinct value.
+   * only one distinct value. Thread-safe for concurrent calls on the same instance.
    *
    * @param attribute1 Index of the first attribute in [0, num_attributes()).
    * @param attribute2 Index of the second attribute in [0, num_attributes()).
    * @return Mutual information I(attribute1; attribute2) >= 0, in bits.
    */
   double mutual_information(std::size_t attribute1, std::size_t attribute2) const;
+
+  /**
+   * @brief Access a single discretized cell value.
+   *
+   * @param attribute Attribute index in [0, num_attributes()).
+   * @param instance  Instance index in [0, num_instances()).
+   * @return The discretized, compacted value at the given position.
+   */
+  T operator()(std::size_t attribute, std::size_t instance) const;
 
 private:
   template <typename U>
@@ -159,7 +170,6 @@ private:
   std::vector<attribute_information<T>> _attr_info;
   matrix<T> _data;
   char _delimiter;
-  mutable std::vector<std::size_t> _mi_scratch;
 };
 
 template <typename T>
@@ -330,36 +340,14 @@ template <typename T> double dataset<T>::attribute_entropy(std::size_t attribute
   return _attr_info[attribute_num].entropy();
 }
 
+template <typename T> T dataset<T>::operator()(std::size_t attribute, std::size_t instance) const {
+  return _data(attribute, instance);
+}
+
 template <typename T>
 double dataset<T>::mutual_information(std::size_t attribute1, std::size_t attribute2) const {
-  std::size_t a1_num_values = _attr_info.at(attribute1).num_values();
-  std::size_t a2_num_values = _attr_info.at(attribute2).num_values();
-  if (a1_num_values == 1 || a2_num_values == 1) {
-    return 0.0;
-  }
-
-  // Build joint histogram using reusable scratch buffer
-  std::size_t histogram_size = a1_num_values * a2_num_values;
-  _mi_scratch.assign(histogram_size, 0);
-  for (std::size_t i = 0; i < num_instances(); ++i) {
-    ++_mi_scratch[_data(attribute1, i) * a2_num_values + _data(attribute2, i)];
-  }
-
-  // Compute mutual information directly from integer histogram
-  double inv_n = 1.0 / static_cast<double>(num_instances());
-  double mi = 0.0;
-  for (std::size_t i = 0; i < a1_num_values; ++i) {
-    for (std::size_t j = 0; j < a2_num_values; ++j) {
-      std::size_t count = _mi_scratch[i * a2_num_values + j];
-      if (count != 0) {
-        double joint_prob = count * inv_n;
-        probability marginal_i = _attr_info.at(attribute1).marginal_probability(i);
-        probability marginal_j = _attr_info.at(attribute2).marginal_probability(j);
-        mi += joint_prob * std::log2(joint_prob / (marginal_i * marginal_j));
-      }
-    }
-  }
-  return mi;
+  return compute_mi(*this, _attr_info.at(attribute1), _attr_info.at(attribute2), attribute1,
+                    attribute2, unweighted_policy{});
 }
 
 /**

@@ -19,6 +19,18 @@ add_executable(bench_mrmr bench_mrmr.cpp)
 target_link_libraries(bench_mrmr PRIVATE mrmr::mrmr Catch2::Catch2WithMain)
 target_compile_options(bench_mrmr PRIVATE -O3)
 
+add_executable(bench_view_access bench_view_access.cpp)
+target_link_libraries(bench_view_access PRIVATE mrmr::mrmr Catch2::Catch2WithMain)
+target_compile_options(bench_view_access PRIVATE -O3)
+
+add_executable(bench_view_tiled bench_view_tiled.cpp)
+target_link_libraries(bench_view_tiled PRIVATE mrmr::mrmr Catch2::Catch2WithMain)
+target_compile_options(bench_view_tiled PRIVATE -O3)
+
+add_executable(bench_view_1m bench_view_1m.cpp)
+target_link_libraries(bench_view_1m PRIVATE mrmr::mrmr Catch2::Catch2WithMain)
+target_compile_options(bench_view_1m PRIVATE -O3)
+
 # --- CLI integration tests ---
 set(MRMR_CLI $<TARGET_FILE:mrmr-cli>)
 set(TEST_DATA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/data")
