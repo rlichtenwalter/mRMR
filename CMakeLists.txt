@@ -35,6 +35,14 @@ target_sources(mrmr INTERFACE
     FILES ${MRMR_PUBLIC_HEADERS}
 )
 
+# --- Continuous MI support (optional, requires kdtree library) ---
+option(MRMR_CONTINUOUS "Enable continuous/mixed MI estimators (requires kdtree)" OFF)
+if(MRMR_CONTINUOUS)
+    find_package(kdtree REQUIRED)
+    target_link_libraries(mrmr INTERFACE kdtree::kdtree)
+    target_compile_definitions(mrmr INTERFACE MRMR_HAS_CONTINUOUS=1)
+endif()
+
 # --- CLI tool ---
 add_executable(mrmr-cli tools/mrmr-cli.cpp)
 target_link_libraries(mrmr-cli PRIVATE mrmr::mrmr)
