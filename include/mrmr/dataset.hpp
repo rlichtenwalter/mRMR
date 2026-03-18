@@ -179,17 +179,37 @@ void dataset<T>::transpose_and_discretize(matrix<U> const &temp, discretization_
   // and compact to contiguous unsigned integer indices for efficient histogram computation.
 
   auto discretize_value = [dm](U value) -> itype {
+    // Guard against non-finite values (NaN, Inf) — casting these to integer is UB
+    if (std::is_floating_point<U>::value) {
+      if (!std::isfinite(static_cast<double>(value))) {
+        throw std::runtime_error("non-finite value (NaN or Inf) encountered during discretization");
+      }
+    }
+
+    double rounded;
     switch (dm) {
     case ROUND:
-      return static_cast<itype>(std::round(value));
+      rounded = std::round(static_cast<double>(value));
+      break;
     case FLOOR:
-      return static_cast<itype>(std::floor(value));
+      rounded = std::floor(static_cast<double>(value));
+      break;
     case CEILING:
-      return static_cast<itype>(std::ceil(value));
+      rounded = std::ceil(static_cast<double>(value));
+      break;
     case TRUNCATE:
     default:
-      return static_cast<itype>(std::trunc(value));
+      rounded = std::trunc(static_cast<double>(value));
+      break;
     }
+
+    // Guard against overflow when converting to long
+    if (rounded > static_cast<double>(std::numeric_limits<itype>::max()) ||
+        rounded < static_cast<double>(std::numeric_limits<itype>::min())) {
+      throw std::runtime_error("discretized value " + std::to_string(rounded) +
+                               " exceeds representable integer range");
+    }
+    return static_cast<itype>(rounded);
   };
 
   std::size_t n_inst = temp.num_rows();
@@ -214,37 +234,44 @@ void dataset<T>::transpose_and_discretize(matrix<U> const &temp, discretization_
     }
   }
 
-  // Range check: each attribute's value span must fit in T after translation.
+  // Compute ranges using unsigned arithmetic to avoid signed overflow.
+  // The range maxima[attr] - minima[attr] could exceed LONG_MAX if values span
+  // a wide signed range (e.g., large positive and large negative values).
+  using utype = unsigned long;
+  std::vector<utype> ranges(n_attr, 0);
   for (std::size_t attr = 0; attr < n_attr; ++attr) {
     if (minima[attr] > maxima[attr]) {
       continue; // empty attribute (no instances)
     }
-    if (maxima[attr] - minima[attr] > std::numeric_limits<T>::max()) {
+    // Safe unsigned subtraction: maxima >= minima is guaranteed here
+    ranges[attr] = static_cast<utype>(maxima[attr]) - static_cast<utype>(minima[attr]);
+    if (ranges[attr] > static_cast<utype>(std::numeric_limits<T>::max())) {
       throw std::runtime_error("attribute '" + attribute_name(attr) + "' range (" +
-                               std::to_string(maxima[attr] - minima[attr]) + ") exceeds " +
+                               std::to_string(ranges[attr]) + ") exceeds " +
                                std::to_string(static_cast<int>(std::numeric_limits<T>::max())) +
                                " under current discretization");
     }
   }
 
-  // Pass 2: Translate to [0, max-min], then compact non-contiguous values to dense
+  // Pass 2: Translate to [0, range], then compact non-contiguous values to dense
   // contiguous indices 0..k-1. Store results in column-major _data matrix.
   _data = matrix<T>(n_attr, n_inst);
 
   for (std::size_t attr = 0; attr < n_attr; ++attr) {
-    itype range = maxima[attr] - minima[attr];
+    // ranges[attr] is at most T::max() (255), so histogram is at most 256 entries
+    std::size_t range_size = static_cast<std::size_t>(ranges[attr]) + 1;
 
     // Build histogram of translated values for this attribute
-    std::vector<unsigned int> histogram(static_cast<std::size_t>(range) + 1, 0);
+    std::vector<unsigned int> histogram(range_size, 0);
     for (std::size_t inst = 0; inst < n_inst; ++inst) {
       itype translated = discretized[attr * n_inst + inst] - minima[attr];
       ++histogram[static_cast<std::size_t>(translated)];
     }
 
     // Build rank map: maps each populated translated value to a dense index
-    std::vector<T> rank_map(static_cast<std::size_t>(range) + 1, 0);
+    std::vector<T> rank_map(range_size, 0);
     T rank = 0;
-    for (std::size_t v = 0; v <= static_cast<std::size_t>(range); ++v) {
+    for (std::size_t v = 0; v < range_size; ++v) {
       if (histogram[v] > 0) {
         rank_map[v] = rank++;
       }

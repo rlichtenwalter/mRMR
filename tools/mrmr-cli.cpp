@@ -122,18 +122,13 @@ int main(int argc, char *argv[]) {
   int c;
   int option_index = 0;
   while (true) {
-    static struct option long_options[] = {{"delimiter", required_argument, 0, 't'},
-                                           {"class", required_argument, 0, 'c'},
-                                           {"discretize", required_argument, 0, 'd'},
-                                           {"verbosity", required_argument, 0, 'v'},
-                                           {"write", no_argument, 0, 'w'},
-                                           {"ensemble", required_argument, 0, 'e'},
-                                           {"solutions", required_argument, 0, 'n'},
-                                           {"features", required_argument, 0, 'k'},
-                                           {"seed", required_argument, 0, 's'},
-                                           {"help", no_argument, 0, 'h'},
-                                           {"version", no_argument, 0, 'V'},
-                                           {nullptr, 0, nullptr, 0}};
+    static struct option long_options[] = {
+        {"delimiter", required_argument, 0, 't'},  {"class", required_argument, 0, 'c'},
+        {"discretize", required_argument, 0, 'd'}, {"verbosity", required_argument, 0, 'v'},
+        {"write-data", no_argument, 0, 'w'},       {"ensemble", required_argument, 0, 'e'},
+        {"solutions", required_argument, 0, 'n'},  {"features", required_argument, 0, 'k'},
+        {"seed", required_argument, 0, 's'},       {"help", no_argument, 0, 'h'},
+        {"version", no_argument, 0, 'V'},          {nullptr, 0, nullptr, 0}};
     c = getopt_long(argc, argv, "t:c:d:v:we:n:k:s:hV", long_options, &option_index);
     if (c == -1) {
       break;
