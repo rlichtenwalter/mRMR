@@ -102,6 +102,7 @@ public:
   std::size_t num_attributes() const { return _names.size(); }
   std::string attribute_name(std::size_t attr) const { return _names[attr]; }
   column_type type_of(std::size_t attr) const { return _col_types[attr]; }
+  std::size_t ksg_k() const { return _ksg_k; }
 
   /**
    * @brief Return attribute entropy proxy for mrmr() filtering.

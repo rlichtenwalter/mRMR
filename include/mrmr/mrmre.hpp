@@ -27,6 +27,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <mrmr/dataset.hpp>
 #include <mrmr/dataset_view.hpp>
 #include <mrmr/mrmr.hpp>
+#ifdef MRMR_HAS_CONTINUOUS
+#include <mrmr/continuous_dataset.hpp>
+#include <mrmr/mixed_dataset.hpp>
+#endif
 #include <numeric>
 #include <random>
 #include <string>
@@ -109,19 +113,95 @@ inline mrmre_solution extract_solution(mrmr_return_type const &result, std::size
   return sol;
 }
 
+// --- Bootstrap resampling overloads ---
+// Each DataSource type gets its optimal resampling strategy.
+// Discrete datasets use zero-copy dataset_view; continuous/mixed create new copies.
+
+/** @brief Bootstrap resample for discrete dataset — returns zero-copy view. */
+template <typename T>
+dataset_view<T> bootstrap_resample(dataset<T> const &source, std::mt19937 &gen) {
+  return dataset_view<T>::bootstrap(source, gen);
+}
+
+#ifdef MRMR_HAS_CONTINUOUS
+/** @brief Bootstrap resample for continuous dataset — returns new owning copy. */
+template <typename FloatT>
+continuous_dataset<FloatT> bootstrap_resample(continuous_dataset<FloatT> const &source,
+                                              std::mt19937 &gen) {
+  std::size_t n = source.num_instances();
+  std::size_t m = source.num_attributes();
+  if (n == 0) {
+    return continuous_dataset<FloatT>();
+  }
+  std::uniform_int_distribution<std::size_t> dist(0, n - 1);
+  std::vector<FloatT> resampled(n * m);
+  for (std::size_t i = 0; i < n; ++i) {
+    std::size_t src_inst = dist(gen);
+    for (std::size_t a = 0; a < m; ++a) {
+      resampled[i * m + a] = source(a, src_inst);
+    }
+  }
+  std::vector<std::string> names;
+  for (std::size_t a = 0; a < m; ++a) {
+    names.push_back(source.attribute_name(a));
+  }
+  return continuous_dataset<FloatT>(resampled, n, m, names, source.ksg_k());
+}
+
+/** @brief Bootstrap resample for mixed dataset — returns new owning copy. */
+inline mixed_dataset bootstrap_resample(mixed_dataset const &source, std::mt19937 &gen) {
+  std::size_t n = source.num_instances();
+  std::size_t m = source.num_attributes();
+  if (n == 0) {
+    return mixed_dataset();
+  }
+  std::uniform_int_distribution<std::size_t> dist(0, n - 1);
+
+  // Build resampled row-major data as doubles (mixed_dataset constructor handles types)
+  std::vector<double> resampled(n * m);
+  std::vector<std::size_t> sample_indices(n);
+  for (auto &idx : sample_indices) {
+    idx = dist(gen);
+  }
+
+  // mixed_dataset doesn't expose operator() — read from discrete/continuous columns
+  // by reconstructing the type-annotated header names and raw double values
+  std::vector<column_type> types(m);
+  std::vector<std::string> names(m);
+  for (std::size_t a = 0; a < m; ++a) {
+    types[a] = source.type_of(a);
+    names[a] = source.attribute_name(a);
+  }
+
+  // We need cell access — mixed_dataset needs operator() or we need another approach.
+  // Since mixed_dataset stores discrete as unsigned char and continuous as double
+  // in separate storage, and its mutual_information handles dispatch internally,
+  // we reconstruct from the attribute_entropy and mutual_information interface.
+  // However, for bootstrap we actually need raw cell values.
+  //
+  // The simplest approach: mixed_dataset can expose a double-valued cell accessor
+  // for bootstrap purposes. For now, use entropy > 0 as a proxy to detect
+  // if an attribute has variation, and rely on the mrmr ranking being valid
+  // on the full dataset for the exhaustive method.
+  //
+  // TODO: Add operator() to mixed_dataset for bootstrap support.
+  // For now, bootstrap on mixed_dataset is not supported; use exhaustive.
+  (void)resampled;
+  (void)sample_indices;
+  throw std::runtime_error(
+      "bootstrap resampling of mixed_dataset requires operator() support (not yet implemented)");
+}
+#endif
+
 /**
  * @brief Perform mRMRe ensemble feature selection.
  *
- * **Exhaustive method:** Generates one solution per top-k relevant feature,
- * each seeded by running mRMR on a view where only that feature and the
- * remaining candidates are available (the seed feature is naturally selected
- * first because it has the highest MI with the class by construction).
+ * Works with any DataSource type: dataset<T>, continuous_dataset<FloatT>,
+ * or mixed_dataset. Bootstrap resampling dispatches to the appropriate
+ * overload of bootstrap_resample().
  *
- * **Bootstrap method:** Generates solution_count bootstrap resamples of the
- * dataset instances using dataset_view, running standard mRMR on each.
- *
- * @tparam T Dataset storage type.
- * @param data                  Source dataset.
+ * @tparam DataSource Data source type satisfying the DataSource concept.
+ * @param data                  Source data.
  * @param class_attribute_index Index of the class/target attribute.
  * @param feature_count         Number of features to select per solution.
  * @param solution_count        Number of ensemble solutions to generate.
@@ -130,8 +210,8 @@ inline mrmre_solution extract_solution(mrmr_return_type const &result, std::size
  * @param cache_threshold       MI cache threshold passed to underlying mRMR calls.
  * @return mrmre_result with all solutions and consensus ranking.
  */
-template <typename T>
-mrmre_result mrmre(dataset<T> const &data, std::size_t class_attribute_index,
+template <typename DataSource>
+mrmre_result mrmre(DataSource const &data, std::size_t class_attribute_index,
                    std::size_t feature_count, std::size_t solution_count,
                    mrmre_method method = mrmre_method::EXHAUSTIVE, unsigned seed = 42,
                    std::size_t cache_threshold = MRMR_DEFAULT_CACHE_THRESHOLD) {
@@ -201,7 +281,7 @@ mrmre_result mrmre(dataset<T> const &data, std::size_t class_attribute_index,
     };
 
     if (useful_indices.size() <= cache_threshold && useful_indices.size() > 1) {
-      triangular_mi_cache<dataset<T>> cache(data, useful_indices);
+      triangular_mi_cache<DataSource> cache(data, useful_indices);
       run_exhaustive([&cache](std::size_t a1, std::size_t a2) { return cache.get(a1, a2); });
     } else {
       run_exhaustive(
@@ -213,9 +293,9 @@ mrmre_result mrmre(dataset<T> const &data, std::size_t class_attribute_index,
     result.solutions.reserve(solution_count);
 
     for (std::size_t s = 0; s < solution_count; ++s) {
-      // Create bootstrap view and run mRMR on it
-      auto view = dataset_view<T>::bootstrap(data, gen);
-      auto mrmr_result = mrmr(view, class_attribute_index, nullptr, cache_threshold);
+      // Create bootstrap sample — dispatches to optimal strategy per DataSource
+      auto sample = bootstrap_resample(data, gen);
+      auto mrmr_result = mrmr(sample, class_attribute_index, nullptr, cache_threshold);
       result.solutions.push_back(extract_solution(mrmr_result, feature_count));
     }
   }
