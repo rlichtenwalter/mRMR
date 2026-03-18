@@ -35,10 +35,16 @@ target_sources(mrmr INTERFACE
     FILES ${MRMR_PUBLIC_HEADERS}
 )
 
-# --- Continuous MI support (optional, requires kdtree library) ---
-option(MRMR_CONTINUOUS "Enable continuous/mixed MI estimators (requires kdtree)" OFF)
+# --- Continuous MI support (optional, fetches kdtree library automatically) ---
+option(MRMR_CONTINUOUS "Enable continuous/mixed MI estimators" OFF)
 if(MRMR_CONTINUOUS)
-    find_package(kdtree REQUIRED)
+    include(FetchContent)
+    FetchContent_Declare(
+        kdtree
+        GIT_REPOSITORY git@git.lichtenwalter.site:rlichten/kdtree.git
+        GIT_TAG        develop
+    )
+    FetchContent_MakeAvailable(kdtree)
     target_link_libraries(mrmr INTERFACE kdtree::kdtree)
     target_compile_definitions(mrmr INTERFACE MRMR_HAS_CONTINUOUS=1)
 endif()
