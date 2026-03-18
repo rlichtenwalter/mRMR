@@ -34,6 +34,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <mrmr/mrmr.hpp>
 #ifdef MRMR_HAS_CONTINUOUS
 #include <mrmr/continuous_dataset.hpp>
+#include <mrmr/mixed_dataset.hpp>
 #endif
 #include <mrmr/mrmre.hpp>
 
@@ -441,6 +442,65 @@ TEST_CASE("mrmr works with continuous_dataset", "[continuous]") {
   REQUIRE(indices[0] == 0); // class at rank 0
   // Correlated feature should be ranked before random feature
   REQUIRE(indices[1] == 1);
+}
+
+TEST_CASE("mixed_dataset parses name:type header", "[mixed]") {
+  std::string str("class:discrete\tfeature:continuous\tcat:discrete\n"
+                  "0\t1.5\t2\n0\t2.3\t1\n1\t0.8\t3\n1\t3.1\t2\n");
+  std::stringstream ss(str);
+  mixed_dataset ds(ss);
+
+  REQUIRE(ds.num_instances() == 4);
+  REQUIRE(ds.num_attributes() == 3);
+  REQUIRE(ds.attribute_name(0) == "class");
+  REQUIRE(ds.attribute_name(1) == "feature");
+  REQUIRE(ds.type_of(0) == column_type::DISCRETE);
+  REQUIRE(ds.type_of(1) == column_type::CONTINUOUS);
+  REQUIRE(ds.type_of(2) == column_type::DISCRETE);
+}
+
+TEST_CASE("mixed_dataset bare names default to discrete", "[mixed]") {
+  std::string str("a\tb\tc:continuous\n0\t1\t1.5\n1\t0\t2.3\n");
+  std::stringstream ss(str);
+  mixed_dataset ds(ss);
+
+  REQUIRE(ds.type_of(0) == column_type::DISCRETE);
+  REQUIRE(ds.type_of(1) == column_type::DISCRETE);
+  REQUIRE(ds.type_of(2) == column_type::CONTINUOUS);
+}
+
+TEST_CASE("mixed_dataset MI dispatch: DD, CC, DC pairs", "[mixed]") {
+  // 4 attrs: class(D), discrete(D), continuous1(C), continuous2(C)
+  std::string str("class:discrete\td:discrete\tc1:continuous\tc2:continuous\n"
+                  "0\t0\t1.0\t2.0\n0\t1\t1.5\t2.5\n0\t0\t0.5\t1.5\n"
+                  "1\t1\t3.0\t4.0\n1\t0\t3.5\t4.5\n1\t1\t2.5\t3.5\n");
+  std::stringstream ss(str);
+  mixed_dataset ds(ss);
+
+  // DD pair
+  double dd_mi = ds.mutual_information(0, 1);
+  REQUIRE(dd_mi >= 0.0);
+
+  // CC pair
+  double cc_mi = ds.mutual_information(2, 3);
+  REQUIRE(cc_mi >= 0.0);
+
+  // DC pair (Ross estimator)
+  double dc_mi = ds.mutual_information(0, 2);
+  REQUIRE(dc_mi >= 0.0);
+}
+
+TEST_CASE("mrmr works with mixed_dataset", "[mixed]") {
+  std::string str("class:discrete\td:discrete\tc:continuous\n"
+                  "0\t0\t1.0\n0\t1\t1.5\n0\t0\t0.5\n"
+                  "1\t1\t3.0\n1\t0\t3.5\n1\t1\t2.5\n");
+  std::stringstream ss(str);
+  mixed_dataset ds(ss);
+
+  auto result = mrmr(ds, 0);
+  auto &ranks = std::get<0>(result);
+  REQUIRE(ranks.size() == 3);
+  REQUIRE(ranks[0] == 0); // class at rank 0
 }
 
 #endif // MRMR_HAS_CONTINUOUS
