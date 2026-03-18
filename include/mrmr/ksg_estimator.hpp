@@ -109,7 +109,7 @@ inline double ksg_mi(double const *x, double const *y, std::size_t n, std::size_
     // kNN search using Chebyshev metric
     // Template params: Metric only; LeafThreshold and Iterator/Point are deduced
     auto neighbors = kdtree::nnsearch_kdtree<kdtree::chebyshev_metric>(points.begin(), points.end(),
-                                                                        points_orig[i], k);
+                                                                       points_orig[i], k);
 
     // k-th neighbor Chebyshev distance (epsilon_i)
     double epsilon = 0.0;
@@ -130,11 +130,14 @@ inline double ksg_mi(double const *x, double const *y, std::size_t n, std::size_
     double xi = x[i], yi = y[i];
     auto x_lo = std::lower_bound(x_sorted.begin(), x_sorted.end(), xi - epsilon);
     auto x_hi = std::upper_bound(x_sorted.begin(), x_sorted.end(), xi + epsilon);
-    std::size_t n_x = static_cast<std::size_t>(x_hi - x_lo) - 1; // exclude self
+    // Use signed arithmetic to safely exclude self; clamp to 1 minimum
+    auto raw_nx = static_cast<std::ptrdiff_t>(x_hi - x_lo) - 1;
+    std::size_t n_x = (raw_nx > 0) ? static_cast<std::size_t>(raw_nx) : 1;
 
     auto y_lo = std::lower_bound(y_sorted.begin(), y_sorted.end(), yi - epsilon);
     auto y_hi = std::upper_bound(y_sorted.begin(), y_sorted.end(), yi + epsilon);
-    std::size_t n_y = static_cast<std::size_t>(y_hi - y_lo) - 1; // exclude self
+    auto raw_ny = static_cast<std::ptrdiff_t>(y_hi - y_lo) - 1;
+    std::size_t n_y = (raw_ny > 0) ? static_cast<std::size_t>(raw_ny) : 1;
 
     sum_digamma +=
         digamma(static_cast<double>(n_x) + 1.0) + digamma(static_cast<double>(n_y) + 1.0);
@@ -214,7 +217,8 @@ inline double ross_mixed_mi(unsigned char const *discrete, double const *continu
     double yi = continuous[i];
     auto lo = std::lower_bound(y_sorted.begin(), y_sorted.end(), yi - epsilon);
     auto hi = std::upper_bound(y_sorted.begin(), y_sorted.end(), yi + epsilon);
-    std::size_t n_x = static_cast<std::size_t>(hi - lo) - 1; // exclude self
+    auto raw_nx = static_cast<std::ptrdiff_t>(hi - lo) - 1;
+    std::size_t n_x = (raw_nx > 0) ? static_cast<std::size_t>(raw_nx) : 1;
     if (n_x == 0) {
       n_x = 1;
     }

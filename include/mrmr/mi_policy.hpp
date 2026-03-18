@@ -61,6 +61,11 @@ struct unweighted_policy {
 struct weighted_policy {
   using histogram_type = double;
 
+  /// Weighted joint histogram requires pair-specific marginals (row/column sums)
+  /// rather than precomputed attribute_information marginals, because the weights
+  /// change the effective distribution.
+  static constexpr bool derives_marginals_from_joint = true;
+
   double const *weights;
   double total_weight;
 

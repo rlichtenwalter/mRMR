@@ -236,6 +236,9 @@ double dataset_view<T>::mutual_information(std::size_t attribute1, std::size_t a
 
 template <typename T>
 dataset_view<T> dataset_view<T>::bootstrap(dataset<T> const &source, std::mt19937 &gen) {
+  if (source.num_instances() == 0) {
+    return dataset_view<T>(source, {});
+  }
   std::uniform_int_distribution<std::size_t> dist(0, source.num_instances() - 1);
   std::vector<std::size_t> indices(source.num_instances());
   for (auto &idx : indices) {
