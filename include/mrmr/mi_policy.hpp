@@ -110,10 +110,13 @@ double compute_mi(DataSource const &data,
     return 0.0;
   }
 
-  // Build joint histogram using thread-local scratch buffer
+  // Build joint histogram using local scratch buffer
+  // Note: thread_local was considered but causes destruction-order issues at program exit
+  // when multiple template instantiations exist. Per-call allocation is acceptable because
+  // the histogram is small (typically < 64KB) and the MI computation dominates runtime.
   std::size_t histogram_size = a1_num_values * a2_num_values;
-  static thread_local std::vector<typename Policy::histogram_type> scratch;
-  scratch.assign(histogram_size, typename Policy::histogram_type{});
+  std::vector<typename Policy::histogram_type> scratch(histogram_size,
+                                                       typename Policy::histogram_type{});
 
   for (std::size_t i = 0; i < data.num_instances(); ++i) {
     if (policy.include(i)) {

@@ -57,6 +57,7 @@ template <typename T> class dataset {
                 "dataset only supports storage types with max value <= 255");
 
   template <typename U> friend std::ostream &operator<<(std::ostream &os, dataset<U> const &m);
+  template <typename U> friend class dataset_view;
 
 private:
   using itype = long;

@@ -110,27 +110,47 @@ Materializing the last-selected column and keeping it cached provides negligible
 (~2% improvement) because the indirection overhead is small relative to the histogram
 computation itself. Materializing each candidate column adds ~63% overhead.
 
+### Scaling validation at N=1M
+
+Results at N=1M (10x the primary benchmarks) confirm the same patterns:
+
+| Access Pattern (N=1M, card=4) | Mean | vs Direct |
+|---|---|---|
+| Direct sequential | 668 us | baseline |
+| Both materialized | 628 us | -6% |
+| Sorted indirection | 932 us | +40% |
+| Gather + sequential | 1289 us | +93% |
+
+The indirection overhead stays at ~40% regardless of N (100K: +53%, 1M: +40%). The gather
+cost scales linearly with N. Tiled materialization (B=8, M=50, N=1M) is 76% slower than
+sorted indirection — the same ratio as at N=100K.
+
+Cache-blocked (tiled) materialization was also tested with column reuse factors up to B=16.
+Despite reducing total column materializations by B/2, the per-column gather cost (~663 us
+at N=1M) exceeds the per-pair indirection savings (~264 us) by ~2.5x, so materialization
+cannot amortize even at high reuse factors. The crossover would require ~3+ reuses per
+gather, which the algorithm's access patterns do not provide.
+
+Sort cost at N=1M: 54 ms (one-time, amortized over all MI calls).
+
 ### Design decision
 
-**Sorted-index indirection wins across all tested scenarios.** The gather cost per column
-(~58 us at N=100K) exceeds the indirection overhead per MI call (~21 us), so materialization
-only breaks even when columns are reused 3+ times without eviction. Neither the triangular
-cache construction nor the on-the-fly mRMR loop achieves sufficient reuse with practical
-cache sizes.
+**Sorted-index indirection wins across all tested scenarios and scales.** The indirection
+overhead (~40% on the histogram loop, ~20% on full MI including log2) is the cost of
+zero-copy bootstrap. Materialization cannot compensate for its gather cost at any tested N.
 
 Implementation: `dataset_view` uses `operator()(attr, inst)` with sorted-index indirection.
-Indices are sorted at view construction time (4.6 ms one-time cost for N=100K, amortized
-over all MI calls). For N <= 10K, sorting is skipped (no L1 cache benefit). The ~30%
-histogram loop overhead translates to ~15-20% overhead on full MI computation (histogram
-is ~33% of total MI cost including probability lookups and log2).
+Indices are sorted at view construction time. For N <= 10K, sorting is skipped (no benefit
+when all data fits in L1).
 
 ### Benchmark reproduction
 
-Benchmarks are in `test/bench_view_access.cpp` (per-pair patterns) and
-`test/bench_view_tiled.cpp` (tiled triangular and on-the-fly strategies). Run with:
+Benchmarks are in `test/bench_view_access.cpp`, `test/bench_view_tiled.cpp`, and
+`test/bench_view_1m.cpp`. Run with:
 ```bash
 ./build/test/bench_view_access "[view-access]"
 ./build/test/bench_view_tiled "[tiled]"
+./build/test/bench_view_1m "[1m]"
 ```
 
 ## Planned Features

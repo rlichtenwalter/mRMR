@@ -82,7 +82,7 @@ constexpr std::size_t MRMR_DEFAULT_CACHE_THRESHOLD = 5000;
  * @tparam T Element storage type of the source dataset.
  */
 template <typename DataSource> class triangular_mi_cache {
-  static constexpr std::size_t UNMAPPED = std::numeric_limits<std::size_t>::max();
+  static std::size_t unmapped_sentinel() { return std::numeric_limits<std::size_t>::max(); }
 
 public:
   /**
@@ -108,8 +108,8 @@ public:
     }
 
     // Build mapping from original attribute index to dense index.
-    // Unmapped indices are set to UNMAPPED sentinel for safety.
-    _to_dense.assign(data.num_attributes(), UNMAPPED);
+    // Unmapped indices are set to unmapped_sentinel() sentinel for safety.
+    _to_dense.assign(data.num_attributes(), unmapped_sentinel());
     for (std::size_t i = 0; i < _m; ++i) {
       _to_dense[attr_indices[i]] = i;
     }
@@ -134,8 +134,8 @@ public:
    * @return Precomputed mutual information I(a1; a2) >= 0.
    */
   double get(std::size_t a1, std::size_t a2) const {
-    assert(a1 < _to_dense.size() && _to_dense[a1] != UNMAPPED);
-    assert(a2 < _to_dense.size() && _to_dense[a2] != UNMAPPED);
+    assert(a1 < _to_dense.size() && _to_dense[a1] != unmapped_sentinel());
+    assert(a2 < _to_dense.size() && _to_dense[a2] != unmapped_sentinel());
     std::size_t d1 = _to_dense[a1];
     std::size_t d2 = _to_dense[a2];
     if (d1 == d2) {

@@ -211,16 +211,24 @@ template <typename T> void dataset_view<T>::compute_attribute_information() {
 
 template <typename T>
 double dataset_view<T>::mutual_information(std::size_t attribute1, std::size_t attribute2) const {
+  // Use the SOURCE dataset's attribute_information for histogram sizing because
+  // the cell values (from operator()) are in the source's compacted index space.
+  // The view's resampled subset may have fewer distinct values, but the values
+  // themselves are still indices into the source's [0, k) range.
+  std::size_t src_attr1 = _attribute_indices[attribute1];
+  std::size_t src_attr2 = _attribute_indices[attribute2];
+  auto const &src_info1 = _source._attr_info[src_attr1];
+  auto const &src_info2 = _source._attr_info[src_attr2];
+
   if (_weights.empty()) {
-    return compute_mi(*this, _attr_info.at(attribute1), _attr_info.at(attribute2), attribute1,
-                      attribute2, unweighted_policy{});
+    return compute_mi(*this, src_info1, src_info2, attribute1, attribute2, unweighted_policy{});
   } else {
     double total_weight = 0;
     for (auto w : _weights) {
       total_weight += w;
     }
-    return compute_mi(*this, _attr_info.at(attribute1), _attr_info.at(attribute2), attribute1,
-                      attribute2, weighted_policy{_weights.data(), total_weight});
+    return compute_mi(*this, src_info1, src_info2, attribute1, attribute2,
+                      weighted_policy{_weights.data(), total_weight});
   }
 }
 
