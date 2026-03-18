@@ -81,7 +81,7 @@ constexpr std::size_t MRMR_DEFAULT_CACHE_THRESHOLD = 5000;
  *
  * @tparam T Element storage type of the source dataset.
  */
-template <typename T> class triangular_mi_cache {
+template <typename DataSource> class triangular_mi_cache {
   static constexpr std::size_t UNMAPPED = std::numeric_limits<std::size_t>::max();
 
 public:
@@ -97,7 +97,7 @@ public:
    * @throws std::length_error If attr_indices.size() is too large for
    *                           triangular indexing with std::size_t arithmetic.
    */
-  triangular_mi_cache(dataset<T> const &data, std::vector<std::size_t> const &attr_indices)
+  triangular_mi_cache(DataSource const &data, std::vector<std::size_t> const &attr_indices)
       : _m(attr_indices.size()) {
     // Guard against overflow in triangular indexing for very large M
     if (_m >= 2) {
@@ -230,17 +230,19 @@ void mrmr_selection_loop(std::vector<double> const &mutual_informations,
  *   reusable scratch buffer in dataset. Essential for very wide datasets
  *   (millions of attributes) where O(M^2) memory is infeasible.
  *
- * @tparam T Element storage type of the dataset (typically unsigned char).
- * @param data                  Dataset to rank.
- * @param class_attribute_index Index of the class attribute within the dataset.
+ * @tparam DataSource Data source type satisfying the DataSource concept
+ *                   (num_instances(), num_attributes(), attribute_name(),
+ *                    attribute_entropy(), mutual_information(), operator()).
+ * @param data                  Data source to rank.
+ * @param class_attribute_index Index of the class attribute within the data source.
  * @param on_rank               Optional callback invoked once per ranked attribute;
  *                              pass nullptr to disable streaming output.
  * @param cache_threshold       Maximum number of useful attributes for which the
  *                              triangular MI cache is precomputed.
  * @return mrmr_return_type containing six parallel vectors of per-rank metadata.
  */
-template <typename T>
-mrmr_return_type mrmr(dataset<T> const &data, std::size_t class_attribute_index,
+template <typename DataSource>
+mrmr_return_type mrmr(DataSource const &data, std::size_t class_attribute_index,
                       mrmr_rank_callback const &on_rank = nullptr,
                       std::size_t cache_threshold = MRMR_DEFAULT_CACHE_THRESHOLD) {
 
@@ -320,7 +322,7 @@ mrmr_return_type mrmr(dataset<T> const &data, std::size_t class_attribute_index,
     // For moderate M: precompute all pairwise MI into triangular cache (O(1) lookup).
     // For very large M: compute on-the-fly to avoid O(M^2) memory (O(N) per lookup).
     if (useful_indices.size() <= cache_threshold && useful_indices.size() > 1) {
-      triangular_mi_cache<T> cache(data, useful_indices);
+      triangular_mi_cache<DataSource> cache(data, useful_indices);
       mrmr_selection_loop(
           mutual_informations, redundance, unselected, last_attribute_index, 2,
           [&cache](std::size_t a1, std::size_t a2) { return cache.get(a1, a2); }, on_selected);

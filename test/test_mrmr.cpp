@@ -28,6 +28,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <mrmr/attribute_information.hpp>
 #include <mrmr/dataset.hpp>
+#include <mrmr/dataset_view.hpp>
 #include <mrmr/matrix.hpp>
 #include <mrmr/mrmr.hpp>
 #include <mrmr/mrmre.hpp>
@@ -232,7 +233,7 @@ TEST_CASE("triangular_mi_cache symmetry", "[mrmr]") {
   dataset<unsigned char> ds(ss, dataset<unsigned char>::ROUND);
 
   std::vector<std::size_t> indices = {0, 1, 2};
-  triangular_mi_cache<unsigned char> cache(ds, indices);
+  triangular_mi_cache<dataset<unsigned char>> cache(ds, indices);
 
   // MI(a,b) == MI(b,a)
   REQUIRE(cache.get(0, 1) == cache.get(1, 0));
@@ -291,16 +292,20 @@ TEST_CASE("mrmre exhaustive consensus ranks frequent features first", "[mrmre]")
   REQUIRE(result.feature_frequencies[result.consensus_ranking[0]] > 0);
 }
 
-TEST_CASE("mrmr_with_seed forces first feature", "[mrmre]") {
+TEST_CASE("mrmr on bootstrap view produces valid ranking", "[mrmre]") {
   std::string str("class\tattr1\tattr2\n0\t0\t1\n0\t1\t1\n0\t0\t0\n1\t1\t1\n1\t0\t1\n1\t1\t1\n");
   std::stringstream ss(str);
   dataset<unsigned char> ds(ss, dataset<unsigned char>::ROUND);
 
-  auto sol1 = mrmr_with_seed(ds, 0, 1, 2);
-  auto sol2 = mrmr_with_seed(ds, 0, 2, 2);
+  std::mt19937 gen(42);
+  auto view = dataset_view<unsigned char>::bootstrap(ds, gen);
 
-  REQUIRE(sol1.selected_indices[0] == 1);
-  REQUIRE(sol2.selected_indices[0] == 2);
-  REQUIRE(sol1.selected_indices.size() == 2);
-  REQUIRE(sol2.selected_indices.size() == 2);
+  // Run mRMR on the view — should produce a valid ranking
+  auto result = mrmr(view, 0);
+  auto &ranks = std::get<0>(result);
+  auto &indices = std::get<1>(result);
+
+  REQUIRE(ranks.size() == view.num_attributes());
+  REQUIRE(ranks[0] == 0);   // rank 0 is class
+  REQUIRE(indices[0] == 0); // class attribute index
 }
