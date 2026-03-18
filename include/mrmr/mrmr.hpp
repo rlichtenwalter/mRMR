@@ -303,9 +303,15 @@ mrmr_return_type mrmr(DataSource const &data, std::size_t class_attribute_index,
     // the selection among tied zero-MI attributes is arbitrary. This is defensible since
     // all candidates are equally uninformative. Subsequent redundance computation is
     // unaffected because MI with any zero-entropy attribute is 0.
-    std::size_t best_attribute_index =
-        std::max_element(mutual_informations.begin(), mutual_informations.end()) -
-        mutual_informations.begin();
+    // Search only useful_indices (not the full vector) to prevent selecting
+    // a useless (zero-entropy) attribute that happens to have MI=0 ahead of
+    // useful attributes that also have MI=0.
+    std::size_t best_attribute_index = useful_indices[0];
+    for (std::size_t idx : useful_indices) {
+      if (mutual_informations[idx] > mutual_informations[best_attribute_index]) {
+        best_attribute_index = idx;
+      }
+    }
     std::size_t last_attribute_index = best_attribute_index;
     unselected.remove(best_attribute_index);
     double mrmr_score = mutual_informations.at(best_attribute_index);

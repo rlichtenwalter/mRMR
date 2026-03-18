@@ -147,10 +147,9 @@ int main(int argc, char *argv[]) {
   bool method_chosen = false;
   std::size_t ksg_k = 6;
 
-  // Missing value handling
-  // TODO: wire into dataset construction when missing value detection is added to the parser
+  // Missing value handling (parsed and validated; strategies other than 'error'
+  // are not yet wired into the dataset loading pipeline)
   missing_strategy missing = missing_strategy::ERROR;
-  (void)missing; // suppress unused warning until wired in
 
   // Ensemble options
   bool ensemble_mode = false;
@@ -328,6 +327,13 @@ int main(int argc, char *argv[]) {
   }
 
   // Validate flag combinations
+  if (missing != missing_strategy::ERROR) {
+    std::cerr << argv[0]
+              << ": --missing strategies other than 'error' are not yet wired into the data "
+                 "pipeline.\nThe missing value library (missing.hpp) is available for programmatic "
+                 "use.\n";
+    return 1;
+  }
 #ifdef MRMR_HAS_CONTINUOUS
   if (method == mi_method::CONTINUOUS && discretization_chosen) {
     std::cerr << argv[0] << ": --discretize is not used with --method=continuous\n";
