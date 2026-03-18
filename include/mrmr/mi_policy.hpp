@@ -86,49 +86,58 @@ struct weighted_policy {
  * @brief MI accumulation policy for pairwise-complete observations.
  *
  * Skips instances where either attribute has a missing value (sentinel value 255
- * for unsigned char). Uses integer histogram like unweighted_policy. The effective
- * sample size is tracked and used for normalization.
+ * for unsigned char). Uses integer histogram like unweighted_policy.
  *
  * This implements the "pairwise deletion" approach used in mRMRe: for each MI(X,Y)
  * computation, only instances where both X and Y are observed contribute.
  * Different MI pairs may use different effective sample sizes.
+ *
+ * The policy is stateless — marginals and effective N are derived from the joint
+ * histogram in compute_mi, ensuring consistency between joint and marginal
+ * probability normalization.
  *
  * @tparam T Value type (must match the dataset's value_type).
  */
 template <typename T> struct pairwise_complete_policy {
   using histogram_type = std::size_t;
 
+  /// Signals to compute_mi that marginals must be derived from the joint histogram
+  /// rather than from precomputed attribute_information (which uses all instances).
+  static constexpr bool derives_marginals_from_joint = true;
+
   T const *col1;
   T const *col2;
-  mutable std::size_t effective_n;
 
-  /**
-   * @brief Construct from two column pointers.
-   * @param c1 Pointer to first attribute column data.
-   * @param c2 Pointer to second attribute column data.
-   */
-  pairwise_complete_policy(T const *c1, T const *c2) : col1(c1), col2(c2), effective_n(0) {}
+  pairwise_complete_policy(T const *c1, T const *c2) : col1(c1), col2(c2) {}
 
   /** @brief Include only instances where both attributes are observed (not missing). */
   bool include(std::size_t inst) const {
-    bool ok = !is_missing(col1[inst]) && !is_missing(col2[inst]);
-    if (ok) {
-      ++effective_n;
-    }
-    return ok;
+    return !is_missing(col1[inst]) && !is_missing(col2[inst]);
   }
 
   /** @brief Increment histogram bin by 1 (integer, same as unweighted). */
   void accumulate(histogram_type &cell, std::size_t /*inst*/) const { ++cell; }
 
-  /** @brief Normalize by effective N (the count of complete pairs). */
-  double normalize(histogram_type count, double /*inv_n*/) const {
-    if (effective_n == 0) {
-      return 0.0;
-    }
-    return static_cast<double>(count) / static_cast<double>(effective_n);
+  /** @brief Normalize by effective N (passed as inv_n by compute_mi). */
+  double normalize(histogram_type count, double inv_n) const {
+    return static_cast<double>(count) * inv_n;
   }
 };
+
+// Trait to detect whether a policy has derives_marginals_from_joint = true.
+// Used by compute_mi to decide whether to derive marginals from the joint
+// histogram (pairwise-complete) or use precomputed attribute_information
+// (unweighted/weighted). The check is compile-time; dead branches are eliminated.
+namespace detail {
+template <typename P, typename = void> struct has_derives_marginals : std::false_type {};
+template <typename P>
+struct has_derives_marginals<P, typename std::enable_if<P::derives_marginals_from_joint>::type>
+    : std::true_type {};
+} // namespace detail
+
+template <typename P> constexpr bool derives_marginals_from_joint_v() {
+  return detail::has_derives_marginals<P>::value;
+}
 
 /**
  * @brief Compute mutual information between two attributes of a data source.
@@ -173,20 +182,70 @@ double compute_mi(DataSource const &data,
     }
   }
 
-  // Compute mutual information from histogram
-  double inv_n = 1.0 / static_cast<double>(data.num_instances());
+  // Compute effective sample size from histogram (sum of all bins).
+  // For unweighted/weighted policies this equals N or total_weight.
+  // For pairwise-complete this equals the count of complete pairs.
+  double effective_total = 0;
+  for (std::size_t k = 0; k < histogram_size; ++k) {
+    effective_total += static_cast<double>(scratch[k]);
+  }
+  if (effective_total == 0) {
+    return 0.0;
+  }
+  double inv_n = 1.0 / effective_total;
+
+  // Derive marginals from the joint histogram when the policy requires it
+  // (e.g., pairwise-complete observations use different subsets per pair).
+  // For unweighted/weighted policies, use the precomputed attribute_information
+  // marginals which are faster (no extra computation).
+  // The trait check is compile-time; the compiler eliminates the unused branch.
+  auto get_marginals = [&]() -> std::pair<std::vector<double>, std::vector<double>> {
+    std::vector<double> m1(a1_num_values, 0.0);
+    std::vector<double> m2(a2_num_values, 0.0);
+    for (std::size_t i = 0; i < a1_num_values; ++i) {
+      for (std::size_t j = 0; j < a2_num_values; ++j) {
+        double val = static_cast<double>(scratch[i * a2_num_values + j]);
+        m1[i] += val;
+        m2[j] += val;
+      }
+    }
+    for (auto &v : m1)
+      v *= inv_n;
+    for (auto &v : m2)
+      v *= inv_n;
+    return {m1, m2};
+  };
+
   double mi = 0.0;
-  for (std::size_t i = 0; i < a1_num_values; ++i) {
-    for (std::size_t j = 0; j < a2_num_values; ++j) {
-      auto count = scratch[i * a2_num_values + j];
-      double joint_prob = policy.normalize(count, inv_n);
-      if (joint_prob > 0) {
-        double marginal_i = info1.marginal_probability(i);
-        double marginal_j = info2.marginal_probability(j);
-        mi += joint_prob * std::log2(joint_prob / (marginal_i * marginal_j));
+
+  // Check at compile time whether the policy needs pair-specific marginals.
+  // This uses a helper trait with SFINAE to detect the derives_marginals_from_joint flag.
+  // For policies without the flag (unweighted, weighted), the precomputed marginals are used.
+  if (derives_marginals_from_joint_v<Policy>()) {
+    auto marginals = get_marginals();
+    for (std::size_t i = 0; i < a1_num_values; ++i) {
+      for (std::size_t j = 0; j < a2_num_values; ++j) {
+        auto count = scratch[i * a2_num_values + j];
+        double joint_prob = policy.normalize(count, inv_n);
+        if (joint_prob > 0) {
+          mi += joint_prob * std::log2(joint_prob / (marginals.first[i] * marginals.second[j]));
+        }
+      }
+    }
+  } else {
+    for (std::size_t i = 0; i < a1_num_values; ++i) {
+      for (std::size_t j = 0; j < a2_num_values; ++j) {
+        auto count = scratch[i * a2_num_values + j];
+        double joint_prob = policy.normalize(count, inv_n);
+        if (joint_prob > 0) {
+          double marginal_i = info1.marginal_probability(i);
+          double marginal_j = info2.marginal_probability(j);
+          mi += joint_prob * std::log2(joint_prob / (marginal_i * marginal_j));
+        }
       }
     }
   }
+
   return mi;
 }
 
