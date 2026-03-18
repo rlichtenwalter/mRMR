@@ -107,10 +107,9 @@ inline double ksg_mi(double const *x, double const *y, std::size_t n, std::size_
   double sum_digamma = 0.0;
   for (std::size_t i = 0; i < n; ++i) {
     // kNN search using Chebyshev metric
-    // Template params: LeafThreshold=0, Iterator (deduced), Point (deduced), Metric
-    auto neighbors =
-        kdtree::nnsearch_kdtree<0, decltype(points.begin()), point2d, kdtree::chebyshev_metric>(
-            points.begin(), points.end(), points_orig[i], k);
+    // Template params: Metric only; LeafThreshold and Iterator/Point are deduced
+    auto neighbors = kdtree::nnsearch_kdtree<kdtree::chebyshev_metric>(points.begin(), points.end(),
+                                                                        points_orig[i], k);
 
     // k-th neighbor Chebyshev distance (epsilon_i)
     double epsilon = 0.0;
