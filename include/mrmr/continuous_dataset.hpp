@@ -85,6 +85,7 @@ public:
   std::size_t num_instances() const { return _num_instances; }
   std::size_t num_attributes() const { return _names.size(); }
   std::string attribute_name(std::size_t attr) const { return _names[attr]; }
+  std::size_t ksg_k() const { return _ksg_k; }
 
   /**
    * @brief Return whether this attribute has variation (non-constant).

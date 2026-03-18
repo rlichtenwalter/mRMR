@@ -463,8 +463,34 @@ int main(int argc, char *argv[]) {
 
     // Standard or ensemble mRMR on mixed data
     if (ensemble_mode) {
-      std::cerr << argv[0] << ": ensemble mode is not yet supported with --method=continuous\n";
-      return 1;
+      if (feature_count == 0) {
+        feature_count = data.num_attributes() - 1;
+      }
+      log_message("Computing mRMRe ensemble (continuous)...", INFO, START);
+      try {
+        auto result = mrmre(data, class_attribute, feature_count, solution_count, ensemble_method,
+                            ensemble_seed);
+        log_message("DONE", INFO, FINISH);
+
+        std::cout << "# Consensus Ranking\n";
+        std::cout << "Rank\tIndex\tName\tFrequency\n";
+        std::size_t rank = 1;
+        for (auto attr_index : result.consensus_ranking) {
+          if (attr_index == class_attribute) {
+            continue;
+          }
+          std::size_t freq = result.feature_frequencies[attr_index];
+          if (freq == 0 && rank > feature_count) {
+            break;
+          }
+          std::cout << rank++ << '\t' << attr_index << '\t' << data.attribute_name(attr_index)
+                    << '\t' << freq << '\n';
+        }
+      } catch (std::exception const &e) {
+        std::cerr << argv[0] << ": " << e.what() << "\n";
+        return 2;
+      }
+      return 0;
     }
 
     log_message("Computing mRMR feature ranking (KSG MI)...", INFO, START);
