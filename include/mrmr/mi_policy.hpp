@@ -43,7 +43,7 @@ struct unweighted_policy {
   void accumulate(histogram_type &cell, std::size_t /*inst*/) const { ++cell; }
 
   /** @brief Convert histogram count to probability via reciprocal multiply. */
-  static double normalize(histogram_type count, double inv_n) {
+  double normalize(histogram_type count, double inv_n) const {
     return static_cast<double>(count) * inv_n;
   }
 };
@@ -77,8 +77,8 @@ struct weighted_policy {
   /** @brief Add the instance's weight to the histogram bin. */
   void accumulate(histogram_type &cell, std::size_t inst) const { cell += weights[inst]; }
 
-  /** @brief Weighted histogram is already in probability scale; normalize by total weight. */
-  static double normalize(histogram_type count, double /*inv_n*/) { return count; }
+  /** @brief Convert accumulated weight to probability by dividing by total weight. */
+  double normalize(histogram_type count, double /*inv_n*/) const { return count / total_weight; }
 };
 
 /**
@@ -130,7 +130,7 @@ double compute_mi(DataSource const &data,
   for (std::size_t i = 0; i < a1_num_values; ++i) {
     for (std::size_t j = 0; j < a2_num_values; ++j) {
       auto count = scratch[i * a2_num_values + j];
-      double joint_prob = Policy::normalize(count, inv_n);
+      double joint_prob = policy.normalize(count, inv_n);
       if (joint_prob > 0) {
         double marginal_i = info1.marginal_probability(i);
         double marginal_j = info2.marginal_probability(j);
