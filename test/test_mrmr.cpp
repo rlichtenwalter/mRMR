@@ -32,6 +32,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <mrmr/matrix.hpp>
 #include <mrmr/missing.hpp>
 #include <mrmr/mrmr.hpp>
+#ifdef MRMR_HAS_CONTINUOUS
+#include <mrmr/continuous_dataset.hpp>
+#endif
 #include <mrmr/mrmre.hpp>
 
 // ============================================================================
@@ -358,3 +361,86 @@ TEST_CASE("count_missing identifies missing values per attribute", "[missing]") 
   REQUIRE(counts[0] == 0);
   REQUIRE(counts[1] == 2);
 }
+
+#ifdef MRMR_HAS_CONTINUOUS
+
+// ============================================================================
+// Continuous dataset / KSG tests
+// ============================================================================
+
+TEST_CASE("continuous_dataset construction and basic properties", "[continuous]") {
+  // 3 attributes, 100 instances
+  std::vector<double> data(300);
+  std::mt19937 gen(42);
+  std::normal_distribution<double> dist(0.0, 1.0);
+  for (auto &v : data) {
+    v = dist(gen);
+  }
+
+  continuous_dataset<double> ds(data, 100, 3, {"x", "y", "z"});
+  REQUIRE(ds.num_instances() == 100);
+  REQUIRE(ds.num_attributes() == 3);
+  REQUIRE(ds.attribute_name(0) == "x");
+  REQUIRE(ds.attribute_entropy(0) > 0); // has variation
+}
+
+TEST_CASE("KSG MI on correlated Gaussian is approximately correct", "[continuous]") {
+  // Generate bivariate Gaussian with known correlation rho=0.8
+  // Analytical MI = -0.5 * log2(1 - rho^2)
+  double rho = 0.8;
+  double true_mi_bits = -0.5 * std::log2(1.0 - rho * rho);
+
+  std::size_t n = 5000;
+  std::mt19937 gen(42);
+  std::normal_distribution<double> norm(0.0, 1.0);
+
+  // class attribute (binary for mRMR compatibility), x, y
+  std::vector<double> data(n * 3);
+  for (std::size_t i = 0; i < n; ++i) {
+    double z1 = norm(gen);
+    double z2 = norm(gen);
+    double x = z1;
+    double y = rho * z1 + std::sqrt(1.0 - rho * rho) * z2;
+    data[i * 3 + 0] = (i % 2 == 0) ? 0.0 : 1.0; // class
+    data[i * 3 + 1] = x;
+    data[i * 3 + 2] = y;
+  }
+
+  continuous_dataset<double> ds(data, n, 3, {"class", "x", "y"}, 6);
+
+  double mi = ds.mutual_information(1, 2);
+  // KSG estimate should be in the right ballpark for N=5000.
+  // KSG can have significant variance at moderate N; use wide tolerance.
+  REQUIRE(mi > true_mi_bits * 0.5);
+  REQUIRE(mi < true_mi_bits * 2.0);
+}
+
+TEST_CASE("mrmr works with continuous_dataset", "[continuous]") {
+  std::size_t n = 200;
+  std::mt19937 gen(42);
+  std::normal_distribution<double> norm(0.0, 1.0);
+
+  // class (0/1), feature correlated with class, random feature
+  std::vector<double> data(n * 3);
+  for (std::size_t i = 0; i < n; ++i) {
+    double cls = (i < n / 2) ? 0.0 : 1.0;
+    double corr_feat = cls + norm(gen) * 0.5; // correlated with class
+    double rand_feat = norm(gen);             // uncorrelated
+    data[i * 3 + 0] = cls;
+    data[i * 3 + 1] = corr_feat;
+    data[i * 3 + 2] = rand_feat;
+  }
+
+  continuous_dataset<double> ds(data, n, 3, {"class", "correlated", "random"}, 6);
+  auto result = mrmr(ds, 0);
+
+  auto &ranks = std::get<0>(result);
+  auto &indices = std::get<1>(result);
+
+  REQUIRE(ranks.size() == 3);
+  REQUIRE(indices[0] == 0); // class at rank 0
+  // Correlated feature should be ranked before random feature
+  REQUIRE(indices[1] == 1);
+}
+
+#endif // MRMR_HAS_CONTINUOUS
