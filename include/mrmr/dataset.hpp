@@ -178,13 +178,20 @@ void dataset<T>::transpose_and_discretize(matrix<U> const &temp, discretization_
   // Discretize, transpose to column-major storage, translate to non-negative values,
   // and compact to contiguous unsigned integer indices for efficient histogram computation.
 
-  auto discretize_value = [dm](U value) -> itype {
-    // Guard against non-finite values (NaN, Inf) — casting these to integer is UB
-    if (std::is_floating_point<U>::value) {
+  // Tag-dispatch helper: check finiteness only for floating-point types (no-op for integers).
+  // Using tag dispatch instead of runtime if(is_floating_point) ensures the check compiles
+  // away entirely for integer types in C++14 (where if constexpr is unavailable).
+  struct finite_check {
+    static void verify(U, std::false_type) {} // integer: always finite
+    static void verify(U value, std::true_type) {
       if (!std::isfinite(static_cast<double>(value))) {
         throw std::runtime_error("non-finite value (NaN or Inf) encountered during discretization");
       }
     }
+  };
+
+  auto discretize_value = [dm](U value) -> itype {
+    finite_check::verify(value, std::is_floating_point<U>{});
 
     double rounded;
     switch (dm) {
@@ -203,8 +210,10 @@ void dataset<T>::transpose_and_discretize(matrix<U> const &temp, discretization_
       break;
     }
 
-    // Guard against overflow when converting to long
-    if (rounded > static_cast<double>(std::numeric_limits<itype>::max()) ||
+    // Guard against overflow when converting to long.
+    // Note: static_cast<double>(LONG_MAX) rounds UP to 2^63 (not exactly representable),
+    // so >= is required to reject values at or above 2^63 which cannot be stored in long.
+    if (rounded >= static_cast<double>(std::numeric_limits<itype>::max()) ||
         rounded < static_cast<double>(std::numeric_limits<itype>::min())) {
       throw std::runtime_error("discretized value " + std::to_string(rounded) +
                                " exceeds representable integer range");
