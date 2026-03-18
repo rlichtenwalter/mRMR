@@ -109,6 +109,9 @@ public:
   /** @brief Return the current field delimiter character. */
   char delimiter() const;
 
+  /** @brief Enable missing value handling: non-numeric fields are stored as NaN. */
+  void set_allow_missing(bool allow);
+
   /**
    * @brief Read matrix dimensions and data from an input stream.
    *
@@ -137,6 +140,7 @@ private:
   std::size_t _num_rows;
   std::size_t _num_columns;
   std::valarray<T> _data;
+  bool _allow_missing = false;
   char _delimiter = '\t';
 };
 
@@ -179,6 +183,8 @@ template <typename T> matrix<T> matrix<T>::transpose() const {
 }
 
 template <typename T> void matrix<T>::set_delimiter(char delim) { _delimiter = delim; }
+
+template <typename T> void matrix<T>::set_allow_missing(bool allow) { _allow_missing = allow; }
 
 template <typename T> char matrix<T>::delimiter() const { return _delimiter; }
 
@@ -231,9 +237,41 @@ template <typename T> void matrix<T>::read_from(std::istream &is) {
   _num_columns = 0;
   std::size_t column_num = 0;
 
-  // Read values until EOF
+  // Read values until EOF. When _allow_missing is true, recognized missing
+  // value tokens (NA, NaN, ?, empty field) are replaced with NaN instead of
+  // causing a parse error. Unrecognized tokens still throw.
   T d;
-  while (is >> d) {
+  auto try_read_value = [&](T &val) -> bool {
+    if (is >> val) {
+      return true;
+    }
+    if (is.eof()) {
+      return false;
+    }
+    // Extraction failed — check if it's a recognized missing value token
+    if (_allow_missing && std::is_floating_point<T>::value) {
+      is.clear(); // reset failbit
+      std::string token;
+      // Read until delimiter or newline
+      char ch;
+      while (is.get(ch)) {
+        if (ch == _delimiter || ch == '\n') {
+          is.putback(ch);
+          break;
+        }
+        token += ch;
+      }
+      if (token == "NA" || token == "NaN" || token == "nan" || token == "?" || token.empty()) {
+        val = std::numeric_limits<T>::quiet_NaN();
+        return true;
+      }
+      throw std::runtime_error("invalid value '" + token + "' at row " +
+                               std::to_string(_num_rows + 1));
+    }
+    return false;
+  };
+
+  while (try_read_value(d)) {
     if (column_num == 0) {
       ++_num_rows;
     }
