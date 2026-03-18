@@ -185,6 +185,7 @@ void mrmr_selection_loop(std::vector<double> const &mutual_informations,
                          std::forward_list<std::size_t> &unselected,
                          std::size_t last_attribute_index, std::size_t start_rank,
                          MILookup &&get_mi, OnSelected &&on_selected) {
+  assert(start_rank >= 2 && "start_rank must be >= 2 to avoid division by zero in redundance");
   std::size_t rank = start_rank;
   while (!unselected.empty()) {
     double best_mrmr_score = -std::numeric_limits<double>::infinity();

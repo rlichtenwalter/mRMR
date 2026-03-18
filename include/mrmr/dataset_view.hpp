@@ -247,8 +247,11 @@ dataset_view<T> dataset_view<T>::bootstrap(dataset<T> const &source, std::mt1993
 template <typename T>
 dataset_view<T> dataset_view<T>::stratified_bootstrap(dataset<T> const &source,
                                                       std::size_t class_attr, std::mt19937 &gen) {
-  // Group instances by class value
-  std::size_t num_classes = source.attribute_entropy(class_attr) > 0 ? 256 : 1;
+  // Group instances by class value, using the actual number of distinct values
+  std::size_t num_classes = source._attr_info[class_attr].num_values();
+  if (num_classes == 0) {
+    num_classes = 1;
+  }
   std::vector<std::vector<std::size_t>> class_instances(num_classes);
   for (std::size_t i = 0; i < source.num_instances(); ++i) {
     class_instances[source(class_attr, i)].push_back(i);

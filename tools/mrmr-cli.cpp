@@ -149,14 +149,16 @@ int main(int argc, char *argv[]) {
         delimiter = optarg[0];
       }
       break;
-    case 'c':
-      class_attribute = std::strtoul(optarg, nullptr, 10);
-      if (class_attribute == 0 || errno == ERANGE) {
-        std::cerr << argv[0] << ":  -c, --class=NUM  class attribute out of range\n";
+    case 'c': {
+      char *endptr = nullptr;
+      errno = 0;
+      class_attribute = std::strtoul(optarg, &endptr, 10);
+      if (endptr == optarg || *endptr != '\0' || class_attribute == 0 || errno == ERANGE) {
+        std::cerr << argv[0] << ":  -c, --class=NUM  must be a positive integer\n";
         return 1;
       }
       --class_attribute;
-      break;
+    } break;
     case 'd':
       if (strcmp(optarg, "round") == 0) {
         discretize = dataset_type::ROUND;
@@ -203,23 +205,34 @@ int main(int argc, char *argv[]) {
         return 1;
       }
       break;
-    case 'n':
-      solution_count = std::strtoul(optarg, nullptr, 10);
-      if (solution_count == 0 || errno == ERANGE) {
+    case 'n': {
+      char *endptr = nullptr;
+      errno = 0;
+      solution_count = std::strtoul(optarg, &endptr, 10);
+      if (endptr == optarg || *endptr != '\0' || solution_count == 0 || errno == ERANGE) {
         std::cerr << argv[0] << ": -n --solutions  must be a positive integer\n";
         return 1;
       }
-      break;
-    case 'k':
-      feature_count = std::strtoul(optarg, nullptr, 10);
-      if (feature_count == 0 || errno == ERANGE) {
+    } break;
+    case 'k': {
+      char *endptr = nullptr;
+      errno = 0;
+      feature_count = std::strtoul(optarg, &endptr, 10);
+      if (endptr == optarg || *endptr != '\0' || feature_count == 0 || errno == ERANGE) {
         std::cerr << argv[0] << ": -k --features  must be a positive integer\n";
         return 1;
       }
-      break;
-    case 's':
-      ensemble_seed = static_cast<unsigned>(std::strtoul(optarg, nullptr, 10));
-      break;
+    } break;
+    case 's': {
+      char *endptr = nullptr;
+      errno = 0;
+      unsigned long seed_val = std::strtoul(optarg, &endptr, 10);
+      if (endptr == optarg || *endptr != '\0' || errno == ERANGE) {
+        std::cerr << argv[0] << ": -s --seed  must be a non-negative integer\n";
+        return 1;
+      }
+      ensemble_seed = static_cast<unsigned>(seed_val);
+    } break;
     case 'h':
       usage(argv[0]);
       return 0;

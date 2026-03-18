@@ -165,32 +165,47 @@ mrmre_result mrmre(dataset<T> const &data, std::size_t class_attribute_index,
     all_useful.reverse();
     mutual_informations[class_attribute_index] = -std::numeric_limits<double>::infinity();
 
-    for (std::size_t s = 0; s < num_solutions; ++s) {
-      std::size_t seed_attr = mi_ranked[s].second;
+    // Build useful_indices for potential triangular cache
+    std::vector<std::size_t> useful_indices;
+    useful_indices.reserve(mi_ranked.size());
+    for (auto const &pair : mi_ranked) {
+      useful_indices.push_back(pair.second);
+    }
 
-      mrmre_solution sol;
-      sol.selected_indices.push_back(seed_attr);
-      sol.scores.push_back(mutual_informations[seed_attr]);
+    // MI lookup: use triangular cache when M is manageable, on-the-fly otherwise
+    auto run_exhaustive = [&](auto &&get_mi) {
+      for (std::size_t s = 0; s < num_solutions; ++s) {
+        std::size_t seed_attr = mi_ranked[s].second;
 
-      if (feature_count > 1 && mi_ranked.size() > 1) {
-        // Build unselected list (all useful except the seed)
-        std::forward_list<std::size_t> unselected = all_useful;
-        unselected.remove(seed_attr);
-        std::vector<double> redundance(data.num_attributes(), 0.0);
+        mrmre_solution sol;
+        sol.selected_indices.push_back(seed_attr);
+        sol.scores.push_back(mutual_informations[seed_attr]);
 
-        mrmr_selection_loop(
-            mutual_informations, redundance, unselected, seed_attr, 2,
-            [&data](std::size_t a1, std::size_t a2) { return data.mutual_information(a1, a2); },
-            [&sol, &data, &mutual_informations,
-             feature_count](std::size_t /*rank*/, std::size_t attr_index, double score) {
-              if (sol.selected_indices.size() < feature_count) {
-                sol.selected_indices.push_back(attr_index);
-                sol.scores.push_back(score);
-              }
-            });
+        if (feature_count > 1 && mi_ranked.size() > 1) {
+          std::forward_list<std::size_t> unselected = all_useful;
+          unselected.remove(seed_attr);
+          std::vector<double> redundance(data.num_attributes(), 0.0);
+
+          mrmr_selection_loop(
+              mutual_informations, redundance, unselected, seed_attr, 2, get_mi,
+              [&sol, feature_count](std::size_t /*rank*/, std::size_t attr_index, double score) {
+                if (sol.selected_indices.size() < feature_count) {
+                  sol.selected_indices.push_back(attr_index);
+                  sol.scores.push_back(score);
+                }
+              });
+        }
+
+        result.solutions.push_back(std::move(sol));
       }
+    };
 
-      result.solutions.push_back(std::move(sol));
+    if (useful_indices.size() <= cache_threshold && useful_indices.size() > 1) {
+      triangular_mi_cache<dataset<T>> cache(data, useful_indices);
+      run_exhaustive([&cache](std::size_t a1, std::size_t a2) { return cache.get(a1, a2); });
+    } else {
+      run_exhaustive(
+          [&data](std::size_t a1, std::size_t a2) { return data.mutual_information(a1, a2); });
     }
 
   } else if (method == mrmre_method::BOOTSTRAP) {
