@@ -341,11 +341,12 @@ TEST_CASE("impute_mode replaces missing with most frequent value", "[missing]") 
   REQUIRE(data[14] == 3);
 }
 
-TEST_CASE("impute_median replaces missing with median", "[missing]") {
-  // attr 0: [0, 2, 4, MISSING, 6] → sorted non-missing = [0, 2, 4, 6], median = 4
+TEST_CASE("impute_median replaces missing with lower median", "[missing]") {
+  // attr 0: [0, 2, 4, MISSING, 6] → sorted non-missing = [0, 2, 4, 6]
+  // Lower median for even count: index (4-1)/2 = 1 → value 2
   std::vector<unsigned char> data = {0, 2, 4, 255, 6};
   impute_median(data.data(), 1, 5);
-  REQUIRE(data[3] == 4); // median of [0, 2, 4, 6] = values[2] = 4
+  REQUIRE(data[3] == 2); // lower median of [0, 2, 4, 6]
 }
 
 TEST_CASE("impute_mean replaces missing with rounded mean", "[missing]") {
