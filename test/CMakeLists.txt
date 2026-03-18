@@ -31,6 +31,10 @@ add_executable(bench_view_1m bench_view_1m.cpp)
 target_link_libraries(bench_view_1m PRIVATE mrmr::mrmr Catch2::Catch2WithMain)
 target_compile_options(bench_view_1m PRIVATE -O3)
 
+add_executable(bench_continuous bench_continuous.cpp)
+target_link_libraries(bench_continuous PRIVATE mrmr::mrmr Catch2::Catch2WithMain)
+target_compile_options(bench_continuous PRIVATE -O3)
+
 # --- CLI integration tests ---
 set(MRMR_CLI $<TARGET_FILE:mrmr-cli>)
 set(TEST_DATA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/data")
@@ -61,3 +65,44 @@ set_tests_properties(cli_bad_delimiter PROPERTIES WILL_FAIL true)
 
 add_test(NAME cli_quiet         COMMAND ${MRMR_CLI} -v quiet -d truncate "${TEST_DATA_DIR}/example.tsv")
 set_tests_properties(cli_quiet PROPERTIES PASS_REGULAR_EXPRESSION "Rank\tIndex\tName")
+
+# --- New CLI feature tests ---
+
+add_test(NAME cli_info COMMAND ${MRMR_CLI} --info -d truncate "${TEST_DATA_DIR}/example.tsv")
+set_tests_properties(cli_info PROPERTIES PASS_REGULAR_EXPRESSION "Instances:.*5")
+
+add_test(NAME cli_write_data COMMAND ${MRMR_CLI} --write-data -d truncate "${TEST_DATA_DIR}/example.tsv")
+set_tests_properties(cli_write_data PROPERTIES PASS_REGULAR_EXPRESSION "class\tbinary_feature")
+
+add_test(NAME cli_missing_error COMMAND ${MRMR_CLI} --missing=error -d truncate "${TEST_DATA_DIR}/example.tsv")
+set_tests_properties(cli_missing_error PROPERTIES PASS_REGULAR_EXPRESSION "Rank\tIndex\tName")
+
+add_test(NAME cli_missing_bad COMMAND ${MRMR_CLI} --missing=invalid "${TEST_DATA_DIR}/example.tsv")
+set_tests_properties(cli_missing_bad PROPERTIES WILL_FAIL true)
+
+add_test(NAME cli_ensemble_exhaustive COMMAND ${MRMR_CLI} -e exhaustive -n 2 -k 2 -v quiet -d truncate "${TEST_DATA_DIR}/example.tsv")
+set_tests_properties(cli_ensemble_exhaustive PROPERTIES PASS_REGULAR_EXPRESSION "Consensus Ranking")
+
+add_test(NAME cli_ensemble_bootstrap COMMAND ${MRMR_CLI} -e bootstrap -n 3 -k 2 -s 42 -v quiet -d truncate "${TEST_DATA_DIR}/example.tsv")
+set_tests_properties(cli_ensemble_bootstrap PROPERTIES PASS_REGULAR_EXPRESSION "Consensus Ranking")
+
+# E2E: class at rank 0, first feature at rank 1
+add_test(NAME cli_e2e_output COMMAND ${MRMR_CLI} -d truncate -v quiet "${TEST_DATA_DIR}/example.tsv")
+set_tests_properties(cli_e2e_output PROPERTIES PASS_REGULAR_EXPRESSION "0\t0\tclass.*\n1\t")
+
+if(MRMR_CONTINUOUS)
+    add_test(NAME cli_method_continuous COMMAND ${MRMR_CLI} --method=continuous -v quiet "${TEST_DATA_DIR}/mixed_example.tsv")
+    set_tests_properties(cli_method_continuous PROPERTIES PASS_REGULAR_EXPRESSION "Rank\tIndex\tName")
+
+    add_test(NAME cli_info_continuous COMMAND ${MRMR_CLI} --info --method=continuous "${TEST_DATA_DIR}/mixed_example.tsv")
+    set_tests_properties(cli_info_continuous PROPERTIES PASS_REGULAR_EXPRESSION "continuous")
+
+    add_test(NAME cli_ksg_k COMMAND ${MRMR_CLI} --method=continuous --ksg-k=3 -v quiet "${TEST_DATA_DIR}/mixed_example.tsv")
+    set_tests_properties(cli_ksg_k PROPERTIES PASS_REGULAR_EXPRESSION "Rank\tIndex\tName")
+
+    add_test(NAME cli_conflict_disc_cont COMMAND ${MRMR_CLI} --method=continuous --discretize=round "${TEST_DATA_DIR}/mixed_example.tsv")
+    set_tests_properties(cli_conflict_disc_cont PROPERTIES WILL_FAIL true)
+
+    add_test(NAME cli_bare_names_cont COMMAND ${MRMR_CLI} --method=continuous -v quiet "${TEST_DATA_DIR}/example.tsv")
+    set_tests_properties(cli_bare_names_cont PROPERTIES PASS_REGULAR_EXPRESSION "Rank\tIndex\tName")
+endif()

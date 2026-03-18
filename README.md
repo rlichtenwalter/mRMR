@@ -143,14 +143,50 @@ Implementation: `dataset_view` uses `operator()(attr, inst)` with sorted-index i
 Indices are sorted at view construction time. For N <= 10K, sorting is skipped (no benefit
 when all data fits in L1).
 
+### Continuous MI performance (KSG vs histogram)
+
+When built with `-DMRMR_CONTINUOUS=ON`, KSG (k-nearest-neighbor) MI estimation is
+available for continuous and mixed-type data. KSG is significantly more expensive
+than histogram MI due to kd-tree construction and k-NN queries per point:
+
+| MI Estimator | N=1K | N=5K | N=10K |
+|---|---|---|---|
+| Discrete (histogram, card=4) | ~1 us | ~3 us | 6 us |
+| KSG (continuous, k=6) | 777 us | 4.8 ms | 10.2 ms |
+
+KSG is ~1650x slower per MI call at N=10K. This is intrinsic to the k-NN algorithm
+(O(N log N) vs O(N) for histograms). The cost is acceptable because:
+- Continuous MI avoids discretization information loss
+- KSG provides consistent, bias-free MI estimates without hyperparameter tuning
+- For moderate attribute counts (M <= 50), full mRMR completes in seconds
+
+Mixed-type MI dispatch (mixed_dataset, N=10K):
+
+| Pair type | Estimator | Time per MI call |
+|---|---|---|
+| Discrete × discrete | Histogram | 8 us |
+| Continuous × continuous | KSG | 79 ms |
+| Discrete × continuous | Ross (2014) | 172 ms |
+
+The DD path in mixed_dataset has the same performance as pure dataset<unsigned char>.
+The type dispatch is one branch per MI call — zero overhead in the inner loop.
+
+Full mRMR on continuous_dataset:
+
+| Dataset size | Time |
+|---|---|
+| N=500, M=10 | 16 ms |
+| N=1K, M=20 | 170 ms |
+
 ### Benchmark reproduction
 
-Benchmarks are in `test/bench_view_access.cpp`, `test/bench_view_tiled.cpp`, and
-`test/bench_view_1m.cpp`. Run with:
+Benchmarks are in `test/bench_view_access.cpp`, `test/bench_view_tiled.cpp`,
+`test/bench_view_1m.cpp`, and `test/bench_continuous.cpp`. Run with:
 ```bash
 ./build/test/bench_view_access "[view-access]"
 ./build/test/bench_view_tiled "[tiled]"
 ./build/test/bench_view_1m "[1m]"
+./build/test/bench_continuous "[continuous]"
 ```
 
 ## Planned Features
