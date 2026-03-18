@@ -93,7 +93,8 @@ public:
    * @throws std::runtime_error If the header newline is missing or column counts
    *                            are inconsistent across rows.
    */
-  dataset(std::istream &, discretization_method dm = ROUND, char delimiter = '\t');
+  dataset(std::istream &, discretization_method dm = ROUND, char delimiter = '\t',
+          missing_strategy ms = missing_strategy::ERROR);
 
   /**
    * @brief Construct a dataset from an in-memory data vector.
@@ -164,34 +165,43 @@ public:
 
 private:
   template <typename U>
-  void transpose_and_discretize(matrix<U> const &temp, discretization_method dm);
+  void transpose_and_discretize(matrix<U> const &temp, discretization_method dm,
+                                missing_strategy ms);
   void compute_attribute_information();
   std::vector<std::string> _names;
   std::vector<attribute_information<T>> _attr_info;
   matrix<T> _data;
   char _delimiter;
+  bool _use_pairwise_mi;
 };
 
 template <typename T>
 template <typename U>
-void dataset<T>::transpose_and_discretize(matrix<U> const &temp, discretization_method dm) {
+void dataset<T>::transpose_and_discretize(matrix<U> const &temp, discretization_method dm,
+                                          missing_strategy ms) {
   // Discretize, transpose to column-major storage, translate to non-negative values,
   // and compact to contiguous unsigned integer indices for efficient histogram computation.
 
-  // Tag-dispatch helper: check finiteness only for floating-point types (no-op for integers).
-  // Using tag dispatch instead of runtime if(is_floating_point) ensures the check compiles
-  // away entirely for integer types in C++14 (where if constexpr is unavailable).
+  // Tag-dispatch helper for finiteness checks on floating-point types.
   struct finite_check {
-    static void verify(U, std::false_type) {} // integer: always finite
-    static void verify(U value, std::true_type) {
-      if (!std::isfinite(static_cast<double>(value))) {
-        throw std::runtime_error("non-finite value (NaN or Inf) encountered during discretization");
-      }
+    static bool is_nan(U, std::false_type) { return false; } // integer: never NaN
+    static bool is_nan(U value, std::true_type) {
+      return !std::isfinite(static_cast<double>(value));
     }
   };
 
-  auto discretize_value = [dm](U value) -> itype {
-    finite_check::verify(value, std::is_floating_point<U>{});
+  // Sentinel value for missing data
+  constexpr itype missing_itype_sentinel = static_cast<itype>(missing_sentinel<T>::value);
+
+  auto discretize_value = [dm, ms](U value) -> itype {
+    // Check for non-finite values (NaN/Inf)
+    if (finite_check::is_nan(value, std::is_floating_point<U>{})) {
+      if (ms == missing_strategy::ERROR) {
+        throw std::runtime_error("non-finite value (NaN or Inf) encountered during discretization");
+      }
+      // Map NaN/Inf to missing sentinel for imputation or pairwise handling
+      return missing_itype_sentinel;
+    }
 
     double rounded;
     switch (dm) {
@@ -234,11 +244,14 @@ void dataset<T>::transpose_and_discretize(matrix<U> const &temp, discretization_
     for (std::size_t attr = 0; attr < n_attr; ++attr) {
       itype val = discretize_value(temp(inst, attr));
       discretized[attr * n_inst + inst] = val;
-      if (val < minima[attr]) {
-        minima[attr] = val;
-      }
-      if (val > maxima[attr]) {
-        maxima[attr] = val;
+      // Skip sentinel values in min/max tracking
+      if (val != missing_itype_sentinel) {
+        if (val < minima[attr]) {
+          minima[attr] = val;
+        }
+        if (val > maxima[attr]) {
+          maxima[attr] = val;
+        }
       }
     }
   }
@@ -270,11 +283,14 @@ void dataset<T>::transpose_and_discretize(matrix<U> const &temp, discretization_
     // ranges[attr] is at most T::max() (255), so histogram is at most 256 entries
     std::size_t range_size = static_cast<std::size_t>(ranges[attr]) + 1;
 
-    // Build histogram of translated values for this attribute
+    // Build histogram of translated values for this attribute (skip missing)
     std::vector<unsigned int> histogram(range_size, 0);
     for (std::size_t inst = 0; inst < n_inst; ++inst) {
-      itype translated = discretized[attr * n_inst + inst] - minima[attr];
-      ++histogram[static_cast<std::size_t>(translated)];
+      itype val = discretized[attr * n_inst + inst];
+      if (val != missing_itype_sentinel) {
+        auto translated = static_cast<std::size_t>(val - minima[attr]);
+        ++histogram[translated];
+      }
     }
 
     // Build rank map: maps each populated translated value to a dense index
@@ -286,10 +302,15 @@ void dataset<T>::transpose_and_discretize(matrix<U> const &temp, discretization_
       }
     }
 
-    // Store compacted values
+    // Store compacted values; map missing to sentinel
     for (std::size_t inst = 0; inst < n_inst; ++inst) {
-      itype translated = discretized[attr * n_inst + inst] - minima[attr];
-      _data(attr, inst) = rank_map[static_cast<std::size_t>(translated)];
+      itype val = discretized[attr * n_inst + inst];
+      if (val == missing_itype_sentinel) {
+        _data(attr, inst) = missing_sentinel<T>::value;
+      } else {
+        auto translated = static_cast<std::size_t>(val - minima[attr]);
+        _data(attr, inst) = rank_map[translated];
+      }
     }
   }
 }
@@ -304,11 +325,12 @@ template <typename T> void dataset<T>::compute_attribute_information() {
   }
 }
 
-template <typename T> dataset<T>::dataset() : _data(0, 0), _delimiter('\t') {}
+template <typename T>
+dataset<T>::dataset() : _data(0, 0), _delimiter('\t'), _use_pairwise_mi(false) {}
 
 template <typename T>
-dataset<T>::dataset(std::istream &is, discretization_method dm, char delimiter)
-    : _delimiter(delimiter) {
+dataset<T>::dataset(std::istream &is, discretization_method dm, char delimiter, missing_strategy ms)
+    : _delimiter(delimiter), _use_pairwise_mi(ms == missing_strategy::PAIRWISE) {
   // the pointer below is managed via the library interface
   is.imbue(std::locale(is.getloc(), new delimiter_ctype(_delimiter)));
 
@@ -322,12 +344,26 @@ dataset<T>::dataset(std::istream &is, discretization_method dm, char delimiter)
     throw std::runtime_error("missing required newline after header");
   }
 
-  // read data matrix
+  // read data matrix — always allow missing token parsing so the full file is
+  // read even when the strategy is ERROR (error is reported during discretization)
   matrix<fptype> temp;
   temp.set_delimiter(_delimiter);
+  temp.set_allow_missing(true);
   is >> temp;
 
-  transpose_and_discretize(temp, dm);
+  transpose_and_discretize(temp, dm, ms);
+
+  // Apply imputation if requested (operates on compacted column-major _data)
+  if (ms == missing_strategy::IMPUTE_MODE) {
+    impute_mode(&_data(0, 0), num_attributes(), num_instances());
+  } else if (ms == missing_strategy::IMPUTE_MEDIAN) {
+    impute_median(&_data(0, 0), num_attributes(), num_instances());
+  } else if (ms == missing_strategy::IMPUTE_MEAN) {
+    impute_mean(&_data(0, 0), num_attributes(), num_instances());
+  } else if (ms == missing_strategy::ERROR) {
+    validate_no_missing(&_data(0, 0), num_attributes(), num_instances(), _names);
+  }
+  // PAIRWISE: no imputation; sentinel values remain for MI to handle
 
   compute_attribute_information();
 }
@@ -359,7 +395,7 @@ dataset<T>::dataset(std::vector<U> data, std::size_t num_instances, std::size_t 
     }
   }
 
-  transpose_and_discretize(temp, dm);
+  transpose_and_discretize(temp, dm, missing_strategy::ERROR);
 
   compute_attribute_information();
 }
@@ -382,6 +418,14 @@ template <typename T> T dataset<T>::operator()(std::size_t attribute, std::size_
 
 template <typename T>
 double dataset<T>::mutual_information(std::size_t attribute1, std::size_t attribute2) const {
+  if (_use_pairwise_mi) {
+    // Pairwise-complete: skip instances where either attribute has sentinel value.
+    // Column data pointers for the policy to check missingness.
+    T const *col1 = &_data(attribute1, 0);
+    T const *col2 = &_data(attribute2, 0);
+    return compute_mi(*this, _attr_info.at(attribute1), _attr_info.at(attribute2), attribute1,
+                      attribute2, pairwise_complete_policy<T>{col1, col2});
+  }
   return compute_mi(*this, _attr_info.at(attribute1), _attr_info.at(attribute2), attribute1,
                     attribute2, unweighted_policy{});
 }

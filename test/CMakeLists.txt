@@ -80,6 +80,26 @@ set_tests_properties(cli_missing_error PROPERTIES PASS_REGULAR_EXPRESSION "Rank\
 add_test(NAME cli_missing_bad COMMAND ${MRMR_CLI} --missing=invalid "${TEST_DATA_DIR}/example.tsv")
 set_tests_properties(cli_missing_bad PROPERTIES WILL_FAIL true)
 
+# --missing=error with actual missing data should fail
+add_test(NAME cli_missing_error_with_nan COMMAND ${MRMR_CLI} --missing=error -d truncate "${TEST_DATA_DIR}/missing_example.tsv")
+set_tests_properties(cli_missing_error_with_nan PROPERTIES WILL_FAIL true)
+
+# --missing=impute-mode with missing data should succeed
+add_test(NAME cli_missing_impute_mode COMMAND ${MRMR_CLI} --missing=impute-mode -d truncate -v quiet "${TEST_DATA_DIR}/missing_example.tsv")
+set_tests_properties(cli_missing_impute_mode PROPERTIES PASS_REGULAR_EXPRESSION "Rank\tIndex\tName")
+
+# --missing=impute-median with missing data
+add_test(NAME cli_missing_impute_median COMMAND ${MRMR_CLI} --missing=impute-median -d truncate -v quiet "${TEST_DATA_DIR}/missing_example.tsv")
+set_tests_properties(cli_missing_impute_median PROPERTIES PASS_REGULAR_EXPRESSION "Rank\tIndex\tName")
+
+# --missing=impute-mean with missing data
+add_test(NAME cli_missing_impute_mean COMMAND ${MRMR_CLI} --missing=impute-mean -d truncate -v quiet "${TEST_DATA_DIR}/missing_example.tsv")
+set_tests_properties(cli_missing_impute_mean PROPERTIES PASS_REGULAR_EXPRESSION "Rank\tIndex\tName")
+
+# --missing=pairwise with missing data
+add_test(NAME cli_missing_pairwise COMMAND ${MRMR_CLI} --missing=pairwise -d truncate -v quiet "${TEST_DATA_DIR}/missing_example.tsv")
+set_tests_properties(cli_missing_pairwise PROPERTIES PASS_REGULAR_EXPRESSION "Rank\tIndex\tName")
+
 add_test(NAME cli_ensemble_exhaustive COMMAND ${MRMR_CLI} -e exhaustive -n 2 -k 2 -v quiet -d truncate "${TEST_DATA_DIR}/example.tsv")
 set_tests_properties(cli_ensemble_exhaustive PROPERTIES PASS_REGULAR_EXPRESSION "Consensus Ranking")
 

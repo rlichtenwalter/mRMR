@@ -327,13 +327,6 @@ int main(int argc, char *argv[]) {
   }
 
   // Validate flag combinations
-  if (missing != missing_strategy::ERROR) {
-    std::cerr << argv[0]
-              << ": --missing strategies other than 'error' are not yet wired into the data "
-                 "pipeline.\nThe missing value library (missing.hpp) is available for programmatic "
-                 "use.\n";
-    return 1;
-  }
 #ifdef MRMR_HAS_CONTINUOUS
   if (method == mi_method::CONTINUOUS && discretization_chosen) {
     std::cerr << argv[0] << ": --discretize is not used with --method=continuous\n";
@@ -368,7 +361,7 @@ int main(int argc, char *argv[]) {
     log_message("Reading and transforming dataset...", INFO, START);
     dataset_type data;
     try {
-      data = dataset_type(input, discretize, delimiter);
+      data = dataset_type(input, discretize, delimiter, missing);
     } catch (std::exception const &e) {
       std::cerr << argv[0] << ": " << e.what() << "\n";
       return 2;
