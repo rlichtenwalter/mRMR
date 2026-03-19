@@ -33,6 +33,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <mrmr/delimiter_ctype.hpp>
 #include <mrmr/ksg_estimator.hpp>
 #include <mrmr/mi_policy.hpp>
+#include <random>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -125,7 +126,6 @@ public:
    *
    * Discrete columns return the compacted unsigned char value cast to double.
    * Continuous columns return the raw double value.
-   * Required for bootstrap resampling, which reconstructs row-major data.
    */
   double operator()(std::size_t attr, std::size_t inst) const {
     if (_col_types[attr] == column_type::DISCRETE) {
@@ -136,6 +136,8 @@ public:
   }
 
 private:
+  friend mixed_dataset bootstrap_resample(mixed_dataset const &, std::mt19937 &);
+
   void parse_header(std::istream &is);
   void build_storage(std::vector<double> const &row_major);
   void compute_statistics();

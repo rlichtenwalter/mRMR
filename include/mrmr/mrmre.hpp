@@ -148,35 +148,63 @@ continuous_dataset<FloatT> bootstrap_resample(continuous_dataset<FloatT> const &
   return continuous_dataset<FloatT>(resampled, n, m, names, source.ksg_k());
 }
 
-/** @brief Bootstrap resample for mixed dataset — returns new owning copy. */
+/**
+ * @brief Bootstrap resample for mixed dataset — returns new owning copy.
+ *
+ * Copies columns at their native types (unsigned char for discrete, double
+ * for continuous) via friend access to internal storage, avoiding the
+ * double round-trip through the row-major constructor which would
+ * unnecessarily re-discretize already-compacted discrete values.
+ */
 inline mixed_dataset bootstrap_resample(mixed_dataset const &source, std::mt19937 &gen) {
   std::size_t n = source.num_instances();
-  std::size_t m = source.num_attributes();
   if (n == 0) {
     return mixed_dataset();
   }
   std::uniform_int_distribution<std::size_t> dist(0, n - 1);
 
-  // Build resampled row-major data via operator() (returns double for both
-  // discrete and continuous columns). The explicit-column constructor handles
-  // re-discretization and type-segregated storage reconstruction.
-  std::vector<column_type> types(m);
-  std::vector<std::string> names(m);
-  for (std::size_t a = 0; a < m; ++a) {
-    types[a] = source.type_of(a);
-    names[a] = source.attribute_name(a);
+  // Generate resampled instance indices
+  std::vector<std::size_t> indices(n);
+  for (auto &idx : indices) {
+    idx = dist(gen);
   }
 
-  std::vector<double> resampled(n * m);
-  for (std::size_t i = 0; i < n; ++i) {
-    std::size_t src_inst = dist(gen);
-    for (std::size_t a = 0; a < m; ++a) {
-      resampled[i * m + a] = source(a, src_inst);
+  // Build result by directly copying type-segregated storage
+  mixed_dataset result;
+  result._names = source._names;
+  result._col_types = source._col_types;
+  result._num_instances = n;
+  result._ksg_k = source._ksg_k;
+
+  // Copy index mappings
+  result._discrete_col_index = source._discrete_col_index;
+  result._continuous_col_index = source._continuous_col_index;
+
+  // Resample discrete columns at native unsigned char type
+  result._discrete_cols.resize(source._discrete_cols.size());
+  for (std::size_t c = 0; c < source._discrete_cols.size(); ++c) {
+    auto const &src_col = source._discrete_cols[c];
+    auto &dst_col = result._discrete_cols[c];
+    dst_col.resize(n);
+    for (std::size_t i = 0; i < n; ++i) {
+      dst_col[i] = src_col[indices[i]];
     }
   }
 
-  return mixed_dataset(std::move(types), std::move(resampled), n, m, std::move(names),
-                        source.ksg_k());
+  // Resample continuous columns at native double type
+  result._continuous_cols.resize(source._continuous_cols.size());
+  for (std::size_t c = 0; c < source._continuous_cols.size(); ++c) {
+    auto const &src_col = source._continuous_cols[c];
+    auto &dst_col = result._continuous_cols[c];
+    dst_col.resize(n);
+    for (std::size_t i = 0; i < n; ++i) {
+      dst_col[i] = src_col[indices[i]];
+    }
+  }
+
+  // Recompute statistics (attribute_information, variation flags)
+  result.compute_statistics();
+  return result;
 }
 #endif
 
