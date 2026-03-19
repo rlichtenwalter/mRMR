@@ -120,6 +120,21 @@ public:
    */
   double mutual_information(std::size_t attr1, std::size_t attr2) const;
 
+  /**
+   * @brief Access a single cell value as double.
+   *
+   * Discrete columns return the compacted unsigned char value cast to double.
+   * Continuous columns return the raw double value.
+   * Required for bootstrap resampling, which reconstructs row-major data.
+   */
+  double operator()(std::size_t attr, std::size_t inst) const {
+    if (_col_types[attr] == column_type::DISCRETE) {
+      return static_cast<double>(_discrete_cols[_discrete_col_index[attr]][inst]);
+    } else {
+      return _continuous_cols[_continuous_col_index[attr]][inst];
+    }
+  }
+
 private:
   void parse_header(std::istream &is);
   void build_storage(std::vector<double> const &row_major);

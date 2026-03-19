@@ -157,15 +157,9 @@ inline mixed_dataset bootstrap_resample(mixed_dataset const &source, std::mt1993
   }
   std::uniform_int_distribution<std::size_t> dist(0, n - 1);
 
-  // Build resampled row-major data as doubles (mixed_dataset constructor handles types)
-  std::vector<double> resampled(n * m);
-  std::vector<std::size_t> sample_indices(n);
-  for (auto &idx : sample_indices) {
-    idx = dist(gen);
-  }
-
-  // mixed_dataset doesn't expose operator() — read from discrete/continuous columns
-  // by reconstructing the type-annotated header names and raw double values
+  // Build resampled row-major data via operator() (returns double for both
+  // discrete and continuous columns). The explicit-column constructor handles
+  // re-discretization and type-segregated storage reconstruction.
   std::vector<column_type> types(m);
   std::vector<std::string> names(m);
   for (std::size_t a = 0; a < m; ++a) {
@@ -173,23 +167,16 @@ inline mixed_dataset bootstrap_resample(mixed_dataset const &source, std::mt1993
     names[a] = source.attribute_name(a);
   }
 
-  // We need cell access — mixed_dataset needs operator() or we need another approach.
-  // Since mixed_dataset stores discrete as unsigned char and continuous as double
-  // in separate storage, and its mutual_information handles dispatch internally,
-  // we reconstruct from the attribute_entropy and mutual_information interface.
-  // However, for bootstrap we actually need raw cell values.
-  //
-  // The simplest approach: mixed_dataset can expose a double-valued cell accessor
-  // for bootstrap purposes. For now, use entropy > 0 as a proxy to detect
-  // if an attribute has variation, and rely on the mrmr ranking being valid
-  // on the full dataset for the exhaustive method.
-  //
-  // TODO: Add operator() to mixed_dataset for bootstrap support.
-  // For now, bootstrap on mixed_dataset is not supported; use exhaustive.
-  (void)resampled;
-  (void)sample_indices;
-  throw std::runtime_error(
-      "bootstrap resampling of mixed_dataset requires operator() support (not yet implemented)");
+  std::vector<double> resampled(n * m);
+  for (std::size_t i = 0; i < n; ++i) {
+    std::size_t src_inst = dist(gen);
+    for (std::size_t a = 0; a < m; ++a) {
+      resampled[i * m + a] = source(a, src_inst);
+    }
+  }
+
+  return mixed_dataset(std::move(types), std::move(resampled), n, m, std::move(names),
+                        source.ksg_k());
 }
 #endif
 
