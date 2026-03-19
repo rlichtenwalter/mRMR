@@ -315,7 +315,8 @@ inline double ross_mixed_mi(unsigned char const *discrete, double const *continu
         dists.push_back(std::abs(continuous[j] - continuous[i]));
       }
     }
-    std::nth_element(dists.begin(), dists.begin() + static_cast<std::ptrdiff_t>(k) - 1, dists.end());
+    std::nth_element(dists.begin(), dists.begin() + static_cast<std::ptrdiff_t>(k) - 1,
+                     dists.end());
     double epsilon = dists[k - 1];
 
     if (epsilon == 0.0) {
