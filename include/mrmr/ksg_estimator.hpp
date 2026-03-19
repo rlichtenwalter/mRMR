@@ -166,8 +166,8 @@ struct sorted_marginal_cache {
  */
 inline double ksg_mi(double const *x, double const *y, std::size_t n, std::size_t k = 6,
                      double const *x_sorted = nullptr, double const *y_sorted = nullptr) {
-  if (n <= k + 1) {
-    return 0.0; // insufficient data
+  if (k == 0 || n <= k + 1) {
+    return 0.0; // insufficient data or degenerate k
   }
 
   // --- Reusable scratch buffer for 2D kd-tree points (leaked thread_local) ---
@@ -199,10 +199,17 @@ inline double ksg_mi(double const *x, double const *y, std::size_t n, std::size_
     // point2d(x[i], y[i]) is equivalent to the former points_orig[i].
     point2d query(x[i], y[i]);
 
-    auto neighbors =
-        kdtree::nnsearch_kdtree<kdtree::chebyshev_metric>(points.begin(), points.end(), query, k);
+    // Search for k+1 neighbors because the query point exists in the tree
+    // (it is one of the N data points) and will always be found as a neighbor
+    // at distance 0 (self-match). Requesting k+1 ensures we get k actual
+    // non-self neighbors. Epsilon (the max distance) is unaffected by the
+    // self-match at distance 0 — it equals the k-th actual neighbor distance.
+    auto neighbors = kdtree::nnsearch_kdtree<kdtree::chebyshev_metric>(points.begin(), points.end(),
+                                                                       query, k + 1);
 
-    // k-th neighbor Chebyshev distance (epsilon_i)
+    // k-th actual neighbor Chebyshev distance (epsilon_i).
+    // The max over k+1 results (including self at distance 0) gives the
+    // distance to the k-th non-self neighbor.
     double epsilon = 0.0;
     for (auto const &nb : neighbors) {
       double d = kdtree::chebyshev_distance(*nb, query);
@@ -211,7 +218,7 @@ inline double ksg_mi(double const *x, double const *y, std::size_t n, std::size_
       }
     }
 
-    // Add small noise to break ties (standard practice, cf. scikit-learn)
+    // Floor epsilon for degenerate cases where all k+1 neighbors coincide.
     if (epsilon == 0.0) {
       epsilon = std::numeric_limits<double>::epsilon();
     }
@@ -260,12 +267,18 @@ inline double ksg_mi(double const *x, double const *y, std::size_t n, std::size_
  */
 inline double ross_mixed_mi(unsigned char const *discrete, double const *continuous, std::size_t n,
                             std::size_t k = 6, double const *continuous_sorted = nullptr) {
-  if (n <= k + 1) {
+  if (k == 0 || n <= k + 1) {
     return 0.0;
   }
 
-  // Group instances by discrete label
-  std::vector<std::vector<std::size_t>> groups(256);
+  // Group instances by discrete label. Leaked thread_local avoids
+  // reconstructing 256 inner vectors on every call; after warmup the
+  // inner vectors retain capacity from prior calls.
+  static thread_local auto *groups_ptr = new std::vector<std::vector<std::size_t>>(256);
+  auto &groups = *groups_ptr;
+  for (auto &g : groups) {
+    g.clear();
+  }
   for (std::size_t i = 0; i < n; ++i) {
     groups[discrete[i]].push_back(i);
   }
@@ -302,7 +315,7 @@ inline double ross_mixed_mi(unsigned char const *discrete, double const *continu
         dists.push_back(std::abs(continuous[j] - continuous[i]));
       }
     }
-    std::nth_element(dists.begin(), dists.begin() + static_cast<long>(k) - 1, dists.end());
+    std::nth_element(dists.begin(), dists.begin() + static_cast<std::ptrdiff_t>(k) - 1, dists.end());
     double epsilon = dists[k - 1];
 
     if (epsilon == 0.0) {
