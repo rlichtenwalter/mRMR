@@ -33,6 +33,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <mrmr/delimiter_ctype.hpp>
 #include <mrmr/ksg_estimator.hpp>
 #include <mrmr/mi_policy.hpp>
+#include <random>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -120,7 +121,23 @@ public:
    */
   double mutual_information(std::size_t attr1, std::size_t attr2) const;
 
+  /**
+   * @brief Access a single cell value as double.
+   *
+   * Discrete columns return the compacted unsigned char value cast to double.
+   * Continuous columns return the raw double value.
+   */
+  double operator()(std::size_t attr, std::size_t inst) const {
+    if (_col_types[attr] == column_type::DISCRETE) {
+      return static_cast<double>(_discrete_cols[_discrete_col_index[attr]][inst]);
+    } else {
+      return _continuous_cols[_continuous_col_index[attr]][inst];
+    }
+  }
+
 private:
+  friend mixed_dataset bootstrap_resample(mixed_dataset const &, std::mt19937 &);
+
   void parse_header(std::istream &is);
   void build_storage(std::vector<double> const &row_major);
   void compute_statistics();

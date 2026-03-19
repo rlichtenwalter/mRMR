@@ -504,6 +504,45 @@ TEST_CASE("mrmr works with mixed_dataset", "[mixed]") {
   REQUIRE(ranks[0] == 0); // class at rank 0
 }
 
+TEST_CASE("mixed_dataset operator() and bootstrap resampling", "[mixed]") {
+  std::string str("class:discrete\td:discrete\tc:continuous\n"
+                  "0\t0\t1.0\n0\t1\t1.5\n0\t0\t0.5\n"
+                  "1\t1\t3.0\n1\t0\t3.5\n1\t1\t2.5\n"
+                  "0\t0\t1.2\n1\t1\t2.8\n"); // 8 instances for bootstrap
+  std::stringstream ss(str);
+  mixed_dataset ds(ss);
+
+  // operator() returns double for both discrete and continuous
+  REQUIRE(ds(0, 0) == 0.0); // class=0, discrete compacted value
+  REQUIRE(ds(2, 0) == 1.0); // continuous column, first instance
+
+  // Bootstrap resample produces a valid dataset
+  std::mt19937 gen(42);
+  auto sample = bootstrap_resample(ds, gen);
+  REQUIRE(sample.num_instances() == ds.num_instances());
+  REQUIRE(sample.num_attributes() == ds.num_attributes());
+  for (std::size_t a = 0; a < sample.num_attributes(); ++a) {
+    REQUIRE(sample.type_of(a) == ds.type_of(a));
+  }
+
+  // mrmr works on the bootstrap sample
+  auto result = mrmr(sample, 0);
+  REQUIRE(std::get<0>(result).size() == sample.num_attributes());
+}
+
+TEST_CASE("mrmre bootstrap works with mixed_dataset", "[mixed]") {
+  std::string str("class:discrete\td:discrete\tc:continuous\n"
+                  "0\t0\t1.0\n0\t1\t1.5\n0\t0\t0.5\n"
+                  "1\t1\t3.0\n1\t0\t3.5\n1\t1\t2.5\n"
+                  "0\t0\t1.2\n1\t1\t2.8\n");
+  std::stringstream ss(str);
+  mixed_dataset ds(ss);
+
+  auto result = mrmre(ds, 0, 2, 2, mrmre_method::BOOTSTRAP, 42);
+  REQUIRE(result.solutions.size() == 2);
+  REQUIRE(result.consensus_ranking.size() == ds.num_attributes());
+}
+
 TEST_CASE("ksg_mi returns 0 for k=0 or insufficient data", "[continuous]") {
   double x[] = {1.0, 2.0, 3.0, 4.0, 5.0};
   double y[] = {2.0, 4.0, 6.0, 8.0, 10.0};
