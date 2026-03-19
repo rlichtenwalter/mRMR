@@ -145,8 +145,10 @@ int main(int argc, char *argv[]) try {
   // Method selection
   enum class mi_method : std::uint8_t { DISCRETE, CONTINUOUS };
   mi_method method = mi_method::DISCRETE;
+#ifdef MRMR_HAS_CONTINUOUS
   bool method_chosen = false;
   std::size_t ksg_k = 6;
+#endif
 
   // Missing value handling (parsed and validated; strategies other than 'error'
   // are not yet wired into the dataset loading pipeline)
@@ -214,7 +216,9 @@ int main(int argc, char *argv[]) try {
         std::cerr << argv[0] << ": -m --method  must be one of {discrete,continuous}\n";
         return 1;
       }
+#ifdef MRMR_HAS_CONTINUOUS
       method_chosen = true;
+#endif
       break;
     case 'd':
       if (strcmp(optarg, "round") == 0) {
@@ -233,12 +237,17 @@ int main(int argc, char *argv[]) try {
       discretization_chosen = true;
       break;
     case OPT_KSG_K: {
+#ifdef MRMR_HAS_CONTINUOUS
       unsigned long val;
       if (!parse_ulong(optarg, val) || val == 0) {
         std::cerr << argv[0] << ": --ksg-k  must be a positive integer\n";
         return 1;
       }
       ksg_k = val;
+#else
+      std::cerr << argv[0] << ": --ksg-k requires building with -DMRMR_CONTINUOUS=ON\n";
+      return 1;
+#endif
     } break;
     case OPT_MISSING:
       if (strcmp(optarg, "error") == 0) {
