@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+No changes yet.
+
+## [1.0.0] - 2026-03-18
+
 ### Added
 - CMake build system with install support (find_package and pkg-config)
 - CTest integration with Catch2 v3 unit test suite (62 tests total)
