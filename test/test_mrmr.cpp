@@ -388,7 +388,7 @@ TEST_CASE("continuous_dataset construction and basic properties", "[continuous]"
 
 TEST_CASE("KSG MI on correlated Gaussian is approximately correct", "[continuous]") {
   // Generate bivariate Gaussian with known correlation rho=0.8
-  // Analytical MI = -0.5 * log2(1 - rho^2)
+  // Analytical MI = -0.5 * log2(1 - rho^2) ≈ 0.737 bits
   double rho = 0.8;
   double true_mi_bits = -0.5 * std::log2(1.0 - rho * rho);
 
@@ -411,10 +411,10 @@ TEST_CASE("KSG MI on correlated Gaussian is approximately correct", "[continuous
   continuous_dataset<double> ds(data, n, 3, {"class", "x", "y"}, 6);
 
   double mi = ds.mutual_information(1, 2);
-  // KSG estimate should be in the right ballpark for N=5000.
-  // KSG can have significant variance at moderate N; use wide tolerance.
-  REQUIRE(mi > true_mi_bits * 0.5);
-  REQUIRE(mi < true_mi_bits * 2.0);
+  // With N=5000 and k=6, KSG Algorithm 1 gives <1% error on this distribution.
+  // Use 20% tolerance to accommodate sampling variance across platforms/seeds.
+  REQUIRE(mi > true_mi_bits * 0.8);
+  REQUIRE(mi < true_mi_bits * 1.2);
 }
 
 TEST_CASE("mrmr works with continuous_dataset", "[continuous]") {
@@ -502,6 +502,92 @@ TEST_CASE("mrmr works with mixed_dataset", "[mixed]") {
   auto &ranks = std::get<0>(result);
   REQUIRE(ranks.size() == 3);
   REQUIRE(ranks[0] == 0); // class at rank 0
+}
+
+TEST_CASE("ksg_mi returns 0 for k=0 or insufficient data", "[continuous]") {
+  double x[] = {1.0, 2.0, 3.0, 4.0, 5.0};
+  double y[] = {2.0, 4.0, 6.0, 8.0, 10.0};
+
+  // k=0 should return 0 (degenerate, not crash)
+  REQUIRE(ksg_mi(x, y, 5, 0) == 0.0);
+
+  // n <= k+1 should return 0
+  REQUIRE(ksg_mi(x, y, 2, 6) == 0.0);
+  REQUIRE(ksg_mi(x, y, 7, 6) == 0.0);
+
+  // n = k+2 = 8 is the minimum that computes (not tested here for exact value)
+}
+
+TEST_CASE("ross_mixed_mi returns 0 for k=0", "[continuous]") {
+  unsigned char disc[] = {0, 0, 1, 1, 0, 1, 0, 1, 0, 1};
+  double cont[] = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0};
+
+  REQUIRE(ross_mixed_mi(disc, cont, 10, 0) == 0.0);
+}
+
+TEST_CASE("continuous_dataset with zero instances does not crash", "[continuous]") {
+  std::vector<double> empty_data;
+  continuous_dataset<double> ds(empty_data, 0, 3, {"a", "b", "c"});
+
+  REQUIRE(ds.num_instances() == 0);
+  REQUIRE(ds.num_attributes() == 3);
+  REQUIRE(ds.attribute_entropy(0) == 0.0); // no variation
+}
+
+TEST_CASE("continuous_dataset<float> produces valid MI", "[continuous]") {
+  // Same correlated Gaussian as the double test, but stored as float
+  double rho = 0.8;
+  double true_mi_bits = -0.5 * std::log2(1.0 - rho * rho);
+
+  std::size_t n = 2000;
+  std::mt19937 gen(42);
+  std::normal_distribution<float> norm(0.0f, 1.0f);
+
+  std::vector<float> data(n * 3);
+  for (std::size_t i = 0; i < n; ++i) {
+    float z1 = norm(gen);
+    float z2 = norm(gen);
+    data[i * 3 + 0] = (i % 2 == 0) ? 0.0f : 1.0f;
+    data[i * 3 + 1] = z1;
+    float rho_f = static_cast<float>(rho);
+    data[i * 3 + 2] = rho_f * z1 + std::sqrt(1.0f - rho_f * rho_f) * z2;
+  }
+
+  continuous_dataset<float> ds(data, n, 3, {"class", "x", "y"}, 6);
+
+  double mi = ds.mutual_information(1, 2);
+  // Float precision reduces accuracy; use wider tolerance than double test
+  REQUIRE(mi > true_mi_bits * 0.5);
+  REQUIRE(mi < true_mi_bits * 1.5);
+}
+
+TEST_CASE("KSG sort cache returns consistent results across repeated calls", "[continuous]") {
+  // Verify that MI values are identical whether the sort cache hits or misses.
+  // The first call is always a cache miss; the second call for the same column
+  // should hit the cache and return the identical value.
+  std::size_t n = 500;
+  std::mt19937 gen(42);
+  std::normal_distribution<double> norm(0.0, 1.0);
+
+  std::vector<double> data(n * 4);
+  for (std::size_t i = 0; i < n; ++i) {
+    data[i * 4 + 0] = (i % 2 == 0) ? 0.0 : 1.0;
+    data[i * 4 + 1] = norm(gen);
+    data[i * 4 + 2] = norm(gen);
+    data[i * 4 + 3] = norm(gen);
+  }
+
+  continuous_dataset<double> ds(data, n, 4, {"class", "a", "b", "c"}, 6);
+
+  // MI(a, b) — cold cache
+  double mi_ab_1 = ds.mutual_information(1, 2);
+  // MI(a, c) — a should hit cache (same first arg)
+  double mi_ac = ds.mutual_information(1, 3);
+  // MI(a, b) again — should match first call exactly
+  double mi_ab_2 = ds.mutual_information(1, 2);
+
+  REQUIRE(mi_ab_1 == mi_ab_2);
+  (void)mi_ac; // used to exercise cache, value not checked
 }
 
 #endif // MRMR_HAS_CONTINUOUS

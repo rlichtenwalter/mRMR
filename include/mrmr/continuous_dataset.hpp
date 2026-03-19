@@ -35,6 +35,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <mrmr/matrix.hpp>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 /**
@@ -111,6 +112,13 @@ public:
 
 private:
   void compute_variation();
+
+  // Tag-dispatch helpers for mutual_information: FloatT==double passes column
+  // pointers directly (zero-copy); other FloatT converts via thread_local scratch.
+  double mutual_information_ksg(std::size_t attr1, std::size_t attr2,
+                                std::true_type /*is_double*/) const;
+  double mutual_information_ksg(std::size_t attr1, std::size_t attr2,
+                                std::false_type /*not_double*/) const;
 
   std::vector<std::string> _names;
   std::vector<FloatT> _data; // column-major: attr * num_instances + inst
@@ -193,6 +201,9 @@ continuous_dataset<FloatT>::continuous_dataset(std::vector<FloatT> data, std::si
 
 template <typename FloatT> void continuous_dataset<FloatT>::compute_variation() {
   _has_variation.resize(num_attributes(), false);
+  if (_num_instances == 0) {
+    return;
+  }
   for (std::size_t attr = 0; attr < num_attributes(); ++attr) {
     FloatT first = _data[attr * _num_instances];
     for (std::size_t inst = 1; inst < _num_instances; ++inst) {
@@ -210,14 +221,61 @@ double continuous_dataset<FloatT>::mutual_information(std::size_t attr1, std::si
     return 0.0;
   }
 
-  // Extract column pointers for KSG
-  std::vector<double> col1(_num_instances), col2(_num_instances);
-  for (std::size_t i = 0; i < _num_instances; ++i) {
-    col1[i] = static_cast<double>(_data[attr1 * _num_instances + i]);
-    col2[i] = static_cast<double>(_data[attr2 * _num_instances + i]);
-  }
+  return mutual_information_ksg(attr1, attr2, std::is_same<FloatT, double>{});
+}
 
-  return ksg_mi(col1.data(), col2.data(), _num_instances, _ksg_k);
+// Tag-dispatch overload: FloatT is double — pass column pointers directly.
+// Zero-copy access enables ksg_mi's internal sort cache to identify and reuse
+// previously sorted columns across MI calls (pointer-keyed single-entry cache).
+template <typename FloatT>
+double continuous_dataset<FloatT>::mutual_information_ksg(std::size_t attr1, std::size_t attr2,
+                                                         std::true_type /*is_double*/) const {
+  return ksg_mi(&_data[attr1 * _num_instances], &_data[attr2 * _num_instances], _num_instances,
+                _ksg_k);
+}
+
+// Tag-dispatch overload: FloatT is not double — convert and cache via thread_local.
+//
+// ksg_mi's internal pointer-keyed cache cannot be used here: it keys on the
+// double* output buffer, which is a shared scratch buffer (same pointer,
+// different content each call → false hits). Instead, we maintain our own
+// single-entry cache keyed on the SOURCE float pointer (&_data[attr * N]),
+// which is unique and stable per column. This gives the same T=1 outer-loop
+// caching benefit as the double path: when attr1 is fixed across inner-loop
+// iterations, both the float→double conversion and the sort are skipped.
+// Pre-sorted arrays are always passed to ksg_mi via x_sorted/y_sorted,
+// bypassing its internal cache entirely (get_or_sort returns immediately
+// when provided != nullptr, without touching the cache state).
+template <typename FloatT>
+double continuous_dataset<FloatT>::mutual_information_ksg(std::size_t attr1, std::size_t attr2,
+                                                         std::false_type /*not_double*/) const {
+  struct col_cache {
+    void const *src_key = nullptr;
+    std::size_t n = 0;
+    std::vector<double> *data = new std::vector<double>();
+    std::vector<double> *sorted = new std::vector<double>();
+  };
+  static thread_local col_cache c1, c2;
+
+  auto convert_and_sort = [this](col_cache &c, std::size_t attr) {
+    void const *src = &_data[attr * _num_instances];
+    if (c.src_key == src && c.n == _num_instances) {
+      return;
+    }
+    c.data->resize(_num_instances);
+    for (std::size_t i = 0; i < _num_instances; ++i) {
+      (*c.data)[i] = static_cast<double>(_data[attr * _num_instances + i]);
+    }
+    *c.sorted = *c.data;
+    std::sort(c.sorted->begin(), c.sorted->end());
+    c.src_key = src;
+    c.n = _num_instances;
+  };
+
+  convert_and_sort(c1, attr1);
+  convert_and_sort(c2, attr2);
+  return ksg_mi(c1.data->data(), c2.data->data(), _num_instances, _ksg_k, c1.sorted->data(),
+                c2.sorted->data());
 }
 
 #endif // MRMR_HAS_CONTINUOUS
