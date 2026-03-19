@@ -229,7 +229,7 @@ double continuous_dataset<FloatT>::mutual_information(std::size_t attr1, std::si
 // previously sorted columns across MI calls (pointer-keyed single-entry cache).
 template <typename FloatT>
 double continuous_dataset<FloatT>::mutual_information_ksg(std::size_t attr1, std::size_t attr2,
-                                                         std::true_type /*is_double*/) const {
+                                                          std::true_type /*is_double*/) const {
   return ksg_mi(&_data[attr1 * _num_instances], &_data[attr2 * _num_instances], _num_instances,
                 _ksg_k);
 }
@@ -248,7 +248,7 @@ double continuous_dataset<FloatT>::mutual_information_ksg(std::size_t attr1, std
 // when provided != nullptr, without touching the cache state).
 template <typename FloatT>
 double continuous_dataset<FloatT>::mutual_information_ksg(std::size_t attr1, std::size_t attr2,
-                                                         std::false_type /*not_double*/) const {
+                                                          std::false_type /*not_double*/) const {
   struct col_cache {
     void const *src_key = nullptr;
     std::size_t n = 0;
