@@ -201,6 +201,9 @@ continuous_dataset<FloatT>::continuous_dataset(std::vector<FloatT> data, std::si
 
 template <typename FloatT> void continuous_dataset<FloatT>::compute_variation() {
   _has_variation.resize(num_attributes(), false);
+  if (_num_instances == 0) {
+    return;
+  }
   for (std::size_t attr = 0; attr < num_attributes(); ++attr) {
     FloatT first = _data[attr * _num_instances];
     for (std::size_t inst = 1; inst < _num_instances; ++inst) {
@@ -234,18 +237,31 @@ double continuous_dataset<FloatT>::mutual_information_ksg(std::size_t attr1, std
 // Tag-dispatch overload: FloatT is not double — convert via thread_local scratch.
 // Uses leaked thread_local buffers (same pattern as ksg_mi internals) to avoid
 // per-call allocation churn for the FloatT-to-double conversion.
+//
+// The pointer-keyed sort cache in ksg_mi cannot be used here: buf1/buf2 are
+// reused scratch buffers whose pointer is stable but whose content changes
+// every call. A stable pointer with changing content causes false cache hits
+// returning stale sorted data. Instead, we sort locally and pass the sorted
+// arrays explicitly via x_sorted/y_sorted, bypassing the cache entirely.
 template <typename FloatT>
 double continuous_dataset<FloatT>::mutual_information_ksg(std::size_t attr1, std::size_t attr2,
                                                          std::false_type /*not_double*/) const {
   static thread_local auto *buf1 = new std::vector<double>();
   static thread_local auto *buf2 = new std::vector<double>();
+  static thread_local auto *sorted1 = new std::vector<double>();
+  static thread_local auto *sorted2 = new std::vector<double>();
   buf1->resize(_num_instances);
   buf2->resize(_num_instances);
   for (std::size_t i = 0; i < _num_instances; ++i) {
     (*buf1)[i] = static_cast<double>(_data[attr1 * _num_instances + i]);
     (*buf2)[i] = static_cast<double>(_data[attr2 * _num_instances + i]);
   }
-  return ksg_mi(buf1->data(), buf2->data(), _num_instances, _ksg_k);
+  sorted1->assign(buf1->begin(), buf1->end());
+  sorted2->assign(buf2->begin(), buf2->end());
+  std::sort(sorted1->begin(), sorted1->end());
+  std::sort(sorted2->begin(), sorted2->end());
+  return ksg_mi(buf1->data(), buf2->data(), _num_instances, _ksg_k, sorted1->data(),
+                sorted2->data());
 }
 
 #endif // MRMR_HAS_CONTINUOUS
