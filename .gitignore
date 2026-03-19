@@ -1,9 +1,5 @@
 build/
 .claude/
 **/.vscode
-test/data/example1_big.tsv
-test/data/example1_small.tsv
-test/data/example2_big.tsv
-test/data/example2_small.tsv
 .cache/
 build-debug/
