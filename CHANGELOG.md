@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Doxygen-compatible docstrings (LLVM style) for all public API elements
 - mRMRe ensemble feature selection (mrmre.hpp): exhaustive and bootstrap methods
   with consensus ranking via feature frequency aggregation
+- Generalize mRMRe for all DataSource types
 
 ### Changed
 - BREAKING: Headers moved to include/mrmr/ subdirectory
