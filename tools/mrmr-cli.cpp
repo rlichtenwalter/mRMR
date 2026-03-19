@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <cerrno>
 #include <chrono>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
@@ -92,7 +93,7 @@ static void log_message(char const *message, verbosity_level verbosity, message_
   using time_type = std::chrono::time_point<std::chrono::high_resolution_clock>;
   static std::stack<time_type, std::list<time_type>> time_stack;
   if (VERBOSITY >= verbosity) {
-    if (mtype == STANDARD && time_stack.size() > 0) {
+    if (mtype == STANDARD && !time_stack.empty()) {
       std::cerr << '\n';
     }
     if (mtype == STANDARD || mtype == START) {
@@ -125,9 +126,9 @@ static bool parse_ulong(char const *optarg_str, unsigned long &out) {
 }
 
 // Long option indices for options without short flags
-enum { OPT_KSG_K = 256, OPT_MISSING };
+enum : std::uint16_t { OPT_KSG_K = 256, OPT_MISSING };
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) try {
   std::cout << std::scientific;
   std::cerr << std::scientific;
 
@@ -142,7 +143,7 @@ int main(int argc, char *argv[]) {
   char delimiter = '\t';
 
   // Method selection
-  enum class mi_method { DISCRETE, CONTINUOUS };
+  enum class mi_method : std::uint8_t { DISCRETE, CONTINUOUS };
   mi_method method = mi_method::DISCRETE;
   bool method_chosen = false;
   std::size_t ksg_k = 6;
@@ -508,5 +509,8 @@ int main(int argc, char *argv[]) {
 #endif
 
   std::cerr << argv[0] << ": unknown method\n";
+  return 1;
+} catch (std::exception const &e) {
+  std::cerr << "error: " << e.what() << '\n';
   return 1;
 }

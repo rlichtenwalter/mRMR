@@ -23,6 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <stdexcept>
 #include <vector>
@@ -47,7 +48,7 @@ template <typename T> bool is_missing(T val) { return val == missing_sentinel<T>
 /**
  * @brief Strategy for handling missing values.
  */
-enum class missing_strategy {
+enum class missing_strategy : std::uint8_t {
   ERROR,         ///< Throw an exception if any missing values are found.
   PAIRWISE,      ///< Use pairwise-complete observations in MI computation.
   IMPUTE_MODE,   ///< Replace missing with the most frequent value per attribute.

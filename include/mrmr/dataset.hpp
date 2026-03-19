@@ -191,7 +191,7 @@ void dataset<T>::transpose_and_discretize(matrix<U> const &temp, discretization_
   };
 
   // Sentinel value for missing data
-  constexpr itype missing_itype_sentinel = static_cast<itype>(missing_sentinel<T>::value);
+  constexpr auto missing_itype_sentinel = static_cast<itype>(missing_sentinel<T>::value);
 
   auto discretize_value = [dm, ms](U value) -> itype {
     // Check for non-finite values (NaN/Inf)

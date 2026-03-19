@@ -82,7 +82,7 @@ template <typename T>
 template <typename ForwardIterator>
 attribute_information<T>::attribute_information(ForwardIterator first, ForwardIterator last) {
   // determine number of elements (std::distance is correct for all iterator categories)
-  std::size_t count = static_cast<std::size_t>(std::distance(first, last));
+  auto count = static_cast<std::size_t>(std::distance(first, last));
 
   // compute temporary histogram on fast integral type
   std::array<unsigned int, std::numeric_limits<T>::max() + 1> temp_histogram = {};

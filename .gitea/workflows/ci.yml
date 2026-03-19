@@ -44,4 +44,4 @@ jobs:
         run: cmake -B build
 
       - name: Run clang-tidy
-        run: clang-tidy -p build include/mrmr/*.hpp tools/*.cpp --warnings-as-errors='*'
+        run: clang-tidy -p build include/mrmr/*.hpp tools/*.cpp

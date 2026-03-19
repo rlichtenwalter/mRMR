@@ -218,15 +218,17 @@ double compute_mi(DataSource const &data,
     std::vector<double> m2(a2_num_values, 0.0);
     for (std::size_t i = 0; i < a1_num_values; ++i) {
       for (std::size_t j = 0; j < a2_num_values; ++j) {
-        double val = static_cast<double>(scratch[i * a2_num_values + j]);
+        auto val = static_cast<double>(scratch[i * a2_num_values + j]);
         m1[i] += val;
         m2[j] += val;
       }
     }
-    for (auto &v : m1)
+    for (auto &v : m1) {
       v *= inv_n;
-    for (auto &v : m2)
+    }
+    for (auto &v : m2) {
       v *= inv_n;
+    }
     return {m1, m2};
   };
 

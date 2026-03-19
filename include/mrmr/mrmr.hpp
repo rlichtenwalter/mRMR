@@ -196,8 +196,8 @@ void mrmr_selection_loop(std::vector<double> const &mutual_informations,
     while (it != std::cend(unselected)) {
       std::size_t attribute_index = *it;
       redundance.at(attribute_index) += get_mi(last_attribute_index, attribute_index);
-      double mrmr_score =
-          mutual_informations.at(attribute_index) - redundance.at(attribute_index) / (rank - 1);
+      double mrmr_score = mutual_informations.at(attribute_index) -
+                          redundance.at(attribute_index) / static_cast<double>(rank - 1);
       if (mrmr_score - best_mrmr_score > std::numeric_limits<double>::epsilon()) {
         best_mrmr_score = mrmr_score;
         best_attribute_index = attribute_index;

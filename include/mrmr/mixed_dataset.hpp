@@ -96,8 +96,9 @@ public:
    * @param names      Attribute names.
    * @param ksg_k      KSG neighbor count.
    */
-  mixed_dataset(std::vector<column_type> col_types, std::vector<double> data, std::size_t num_inst,
-                std::size_t num_attr, std::vector<std::string> names = {}, std::size_t ksg_k = 6);
+  mixed_dataset(std::vector<column_type> col_types, std::vector<double> const &data,
+                std::size_t num_inst, std::size_t num_attr, std::vector<std::string> names = {},
+                std::size_t ksg_k = 6);
 
   std::size_t num_instances() const { return _num_instances; }
   std::size_t num_attributes() const { return _names.size(); }
@@ -213,10 +214,12 @@ inline void mixed_dataset::build_storage(std::vector<double> const &row_major) {
           throw std::runtime_error("non-finite value in discrete column '" + _names[attr] + "'");
         }
         disc[inst] = static_cast<long>(std::trunc(val));
-        if (disc[inst] < minv)
+        if (disc[inst] < minv) {
           minv = disc[inst];
-        if (disc[inst] > maxv)
+        }
+        if (disc[inst] > maxv) {
           maxv = disc[inst];
+        }
       }
 
       unsigned long range = static_cast<unsigned long>(maxv) - static_cast<unsigned long>(minv);
@@ -233,8 +236,9 @@ inline void mixed_dataset::build_storage(std::vector<double> const &row_major) {
       std::vector<unsigned char> rank_map(static_cast<std::size_t>(range) + 1, 0);
       unsigned char rank = 0;
       for (std::size_t v = 0; v <= static_cast<std::size_t>(range); ++v) {
-        if (histogram[v] > 0)
+        if (histogram[v] > 0) {
           rank_map[v] = rank++;
+        }
       }
       for (std::size_t inst = 0; inst < _num_instances; ++inst) {
         auto translated = static_cast<std::size_t>(disc[inst] - minv);
@@ -297,9 +301,10 @@ inline mixed_dataset::mixed_dataset(std::istream &is, char delimiter, std::size_
   compute_statistics();
 }
 
-inline mixed_dataset::mixed_dataset(std::vector<column_type> col_types, std::vector<double> data,
-                                    std::size_t num_inst, std::size_t num_attr,
-                                    std::vector<std::string> names, std::size_t ksg_k)
+inline mixed_dataset::mixed_dataset(std::vector<column_type> col_types,
+                                    std::vector<double> const &data, std::size_t num_inst,
+                                    std::size_t num_attr, std::vector<std::string> names,
+                                    std::size_t ksg_k)
     : _col_types(std::move(col_types)), _num_instances(num_inst), _ksg_k(ksg_k) {
   if (num_inst * num_attr != data.size()) {
     throw std::logic_error("data size must equal num_instances * num_attributes");
@@ -340,8 +345,9 @@ inline double mixed_dataset::mutual_information(std::size_t attr1, std::size_t a
 
     std::size_t k1 = info1.num_values();
     std::size_t k2 = info2.num_values();
-    if (k1 == 1 || k2 == 1)
+    if (k1 == 1 || k2 == 1) {
       return 0.0;
+    }
 
     std::vector<std::size_t> scratch(k1 * k2, 0);
     for (std::size_t i = 0; i < _num_instances; ++i) {
@@ -354,7 +360,7 @@ inline double mixed_dataset::mutual_information(std::size_t attr1, std::size_t a
       for (std::size_t j = 0; j < k2; ++j) {
         std::size_t count = scratch[i * k2 + j];
         if (count != 0) {
-          double jp = count * inv_n;
+          double jp = static_cast<double>(count) * inv_n;
           double mi_val = info1.marginal_probability(i);
           double mj_val = info2.marginal_probability(j);
           mi += jp * std::log2(jp / (mi_val * mj_val));
