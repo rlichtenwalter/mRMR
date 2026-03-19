@@ -40,6 +40,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Mark delimiter_ctype non-template member functions as inline for ODR safety
 - Restructure discretization pipeline: compute min/max first, then translate and compact
 - Mutual information computation uses reusable scratch buffer (mutable member) and inline probability calculation
+- KSG MI estimator: eliminate redundant points_orig copy, use leaked thread_local
+  scratch buffers for allocation reuse, and add single-entry sorted marginal cache
+  that captures outer-loop column reuse in triangular MI computation
+- continuous_dataset::mutual_information() passes column pointers directly when
+  FloatT==double (zero-copy), enabling pointer-keyed sort cache identification
 - Matrix parser uses vector for dynamic growth, throws exceptions instead of exit()
 - Matrix I/O uses member delimiter instead of global variable
 

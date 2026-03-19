@@ -35,6 +35,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <mrmr/matrix.hpp>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 /**
@@ -111,6 +112,13 @@ public:
 
 private:
   void compute_variation();
+
+  // Tag-dispatch helpers for mutual_information: FloatT==double passes column
+  // pointers directly (zero-copy); other FloatT converts via thread_local scratch.
+  double mutual_information_ksg(std::size_t attr1, std::size_t attr2,
+                                std::true_type /*is_double*/) const;
+  double mutual_information_ksg(std::size_t attr1, std::size_t attr2,
+                                std::false_type /*not_double*/) const;
 
   std::vector<std::string> _names;
   std::vector<FloatT> _data; // column-major: attr * num_instances + inst
@@ -210,14 +218,34 @@ double continuous_dataset<FloatT>::mutual_information(std::size_t attr1, std::si
     return 0.0;
   }
 
-  // Extract column pointers for KSG
-  std::vector<double> col1(_num_instances), col2(_num_instances);
-  for (std::size_t i = 0; i < _num_instances; ++i) {
-    col1[i] = static_cast<double>(_data[attr1 * _num_instances + i]);
-    col2[i] = static_cast<double>(_data[attr2 * _num_instances + i]);
-  }
+  return mutual_information_ksg(attr1, attr2, std::is_same<FloatT, double>{});
+}
 
-  return ksg_mi(col1.data(), col2.data(), _num_instances, _ksg_k);
+// Tag-dispatch overload: FloatT is double — pass column pointers directly.
+// Zero-copy access enables ksg_mi's internal sort cache to identify and reuse
+// previously sorted columns across MI calls (pointer-keyed single-entry cache).
+template <typename FloatT>
+double continuous_dataset<FloatT>::mutual_information_ksg(std::size_t attr1, std::size_t attr2,
+                                                         std::true_type /*is_double*/) const {
+  return ksg_mi(&_data[attr1 * _num_instances], &_data[attr2 * _num_instances], _num_instances,
+                _ksg_k);
+}
+
+// Tag-dispatch overload: FloatT is not double — convert via thread_local scratch.
+// Uses leaked thread_local buffers (same pattern as ksg_mi internals) to avoid
+// per-call allocation churn for the FloatT-to-double conversion.
+template <typename FloatT>
+double continuous_dataset<FloatT>::mutual_information_ksg(std::size_t attr1, std::size_t attr2,
+                                                         std::false_type /*not_double*/) const {
+  static thread_local auto *buf1 = new std::vector<double>();
+  static thread_local auto *buf2 = new std::vector<double>();
+  buf1->resize(_num_instances);
+  buf2->resize(_num_instances);
+  for (std::size_t i = 0; i < _num_instances; ++i) {
+    (*buf1)[i] = static_cast<double>(_data[attr1 * _num_instances + i]);
+    (*buf2)[i] = static_cast<double>(_data[attr2 * _num_instances + i]);
+  }
+  return ksg_mi(buf1->data(), buf2->data(), _num_instances, _ksg_k);
 }
 
 #endif // MRMR_HAS_CONTINUOUS
