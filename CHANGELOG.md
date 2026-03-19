@@ -9,54 +9,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 - CMake build system with install support (find_package and pkg-config)
-- CTest integration with Catch2 v3 unit test suite (10 tests)
-- CLI integration tests (9 tests)
+- CTest integration with Catch2 v3 unit test suite (62 tests total)
+- CLI integration tests covering file/stdin input, flags, error handling, and ensemble output
 - clang-format and clang-tidy configurations
 - pre-commit hooks for formatting and file hygiene
 - Gitea Actions CI workflow (build Release/Debug matrix, test, lint)
-- Include guard for mrmr.hpp header
-- CLI file-not-found error handling
-- Catch2 performance benchmarks for dataset construction, mutual information, mRMR feature selection, and cardinality scaling
 - Optional callback parameter to mrmr() for streaming per-rank output
 - static_assert constraining storage type T to max value <= 255
 - Value compaction pass ensuring contiguous attribute indices after discretization
 - Triangular MI cache for O(1) pairwise MI lookup with dynamic strategy selection
   based on attribute count (precompute for M <= 5000, on-the-fly for larger datasets)
-- Unit tests for mRMR algorithm: cached vs on-the-fly equivalence, all-constant
-  attributes edge case, callback invocation, triangular cache symmetry
 - Doxygen-compatible docstrings (LLVM style) for all public API elements
-- mRMRe ensemble feature selection (mrmre.hpp): exhaustive and bootstrap methods
-  with consensus ranking via feature frequency aggregation
-- Generalize mRMRe for all DataSource types
+- dataset_view for zero-copy bootstrap resampling with sorted-index indirection
+- MI policy template: unweighted (integer histogram), weighted (double histogram),
+  and pairwise-complete (skip missing pairs) policies with zero-overhead dispatch
+- mRMRe ensemble feature selection: exhaustive (different seed features) and bootstrap
+  (resample instances) methods with consensus ranking via feature frequency aggregation,
+  generalized for all DataSource types
+- Missing value support: sentinel (255 for unsigned char), imputation (mode, median, mean),
+  and pairwise-complete MI computation
+- Continuous dataset with KSG Algorithm 1 MI estimator (Kraskov et al., 2004) using
+  Chebyshev distance kd-tree for joint space k-NN search
+- Mixed dataset with type-segregated storage (discrete as unsigned char, continuous as
+  double) and per-pair MI dispatch: histogram (DD), KSG (CC), Ross 2014 (DC/CD)
+- CLI: --method={discrete,continuous} for dataset type selection, --missing={error,
+  impute-mode,impute-median,impute-mean,pairwise} for missing value handling, --info
+  for dataset summary, --ksg-k for KSG neighbor count, grouped help output
+- Bootstrap resampling for all dataset types: zero-copy view for discrete, native-type
+  column copying for continuous and mixed
+- operator() cell accessor on mixed_dataset returning double
+- Catch2 performance benchmarks for view access patterns, MI computation, and continuous data
 
 ### Changed
 - BREAKING: Headers moved to include/mrmr/ subdirectory
 - BREAKING: Replaced Makefile with CMake
 - BREAKING: dataset constructor now takes delimiter parameter instead of using global variable
+- BREAKING: mrmr() templated on DataSource concept instead of dataset storage type T
 - CLI tool moved from src/ to tools/
-- CLI version string now read from VERSION file via CMake
-- CLI now uses library mrmr() function with callback instead of inline algorithm
+- CLI version string read from VERSION file via CMake
+- CLI uses library mrmr() function with callback instead of inline algorithm
 - Normalized include guard naming convention (MRMR_ prefix)
 - All source files formatted with clang-format (LLVM style, 100 column limit)
-- Mark delimiter_ctype non-template member functions as inline for ODR safety
 - Restructure discretization pipeline: compute min/max first, then translate and compact
-- Mutual information computation uses reusable scratch buffer (mutable member) and inline probability calculation
-- KSG MI estimator: eliminate redundant points_orig copy, use leaked thread_local
-  scratch buffers for allocation reuse, and add single-entry sorted marginal cache
-  that captures outer-loop column reuse in triangular MI computation
-- continuous_dataset::mutual_information() passes column pointers directly when
-  FloatT==double (zero-copy), enabling pointer-keyed sort cache identification
+- MI computation uses leaked thread_local scratch buffers for zero-allocation reuse
+  (following Google C++ Style Guide / Abseil NoDestructor pattern)
+- KSG MI estimator: single-entry sorted marginal cache capturing outer-loop column reuse,
+  optional pre-sorted array parameters, zero-copy column access for FloatT==double
 - Matrix parser uses vector for dynamic growth, throws exceptions instead of exit()
 - Matrix I/O uses member delimiter instead of global variable
 
 ### Fixed
-- Fix delimiter_ctype::make_table iterate-by-value bug that failed to clear previous space bits
+- Fix delimiter_ctype iterate-by-value bug that failed to clear previous space bits
 - Preserve newline as whitespace in custom delimiter locale for correct header parsing
 - Fix histogram array off-by-one (max() → max() + 1) in attribute_information
 - Fix non-contiguous attribute value handling that caused buffer overruns in mutual_information
 - Fix matrix parser EOF handling (replace while(!is.eof()) with read-then-check pattern)
 - Eliminate global mutable DELIMITER state; delimiter is now per-dataset instance
 - Eliminate duplicated mRMR algorithm in CLI (was diverging from library implementation)
+- Fix discretization overflow guard boundary and NaN/Inf handling with tag dispatch
+- Fix weighted_policy::normalize to divide by total weight instead of returning raw value
+- Fix pairwise_complete_policy to derive marginals from joint histogram
+- Fix impute_mean sentinel collision by clamping to [0, sentinel-1]
+- Fix dataset_view MI to use source dataset's attribute_information for histogram sizing
+- Fix mrmr first-rank selection to search only useful attributes
+- Fix KSG self-inclusion: search k+1 neighbors since query point is always found as
+  self-match at distance 0 in the kd-tree
+- Guard against k=0 in ksg_mi and ross_mixed_mi to prevent undefined behavior
+- Fix compute_variation undefined behavior when num_instances is zero
 
 ## [0.9.3] - 2020-12-07
 
