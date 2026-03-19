@@ -588,7 +588,7 @@ TEST_CASE("continuous_dataset<float> produces valid MI", "[continuous]") {
     float z2 = norm(gen);
     data[i * 3 + 0] = (i % 2 == 0) ? 0.0f : 1.0f;
     data[i * 3 + 1] = z1;
-    float rho_f = static_cast<float>(rho);
+    auto rho_f = static_cast<float>(rho);
     data[i * 3 + 2] = rho_f * z1 + std::sqrt(1.0f - rho_f * rho_f) * z2;
   }
 

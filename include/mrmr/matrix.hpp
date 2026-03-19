@@ -281,7 +281,7 @@ template <typename T> void matrix<T>::read_from(std::istream &is) {
     buffer.push_back(d);
 
     // Read the separator character following the value
-    char c = is.get();
+    auto c = static_cast<char>(is.get());
     if (c == _delimiter) {
       ++column_num;
     } else if (c == '\n') {

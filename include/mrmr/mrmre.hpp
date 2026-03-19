@@ -23,6 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <mrmr/dataset.hpp>
 #include <mrmr/dataset_view.hpp>
@@ -55,7 +56,7 @@ struct mrmre_result {
 };
 
 /** @brief Ensemble method for generating multiple mRMR solutions. */
-enum class mrmre_method {
+enum class mrmre_method : std::uint8_t {
   EXHAUSTIVE, ///< Each solution starts from a different top-k relevant feature.
   BOOTSTRAP   ///< Each solution runs on a bootstrap resample of the instances.
 };
@@ -159,7 +160,7 @@ continuous_dataset<FloatT> bootstrap_resample(continuous_dataset<FloatT> const &
 inline mixed_dataset bootstrap_resample(mixed_dataset const &source, std::mt19937 &gen) {
   std::size_t n = source.num_instances();
   if (n == 0) {
-    return mixed_dataset();
+    return {};
   }
   std::uniform_int_distribution<std::size_t> dist(0, n - 1);
 

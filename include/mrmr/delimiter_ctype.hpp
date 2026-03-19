@@ -54,7 +54,7 @@ public:
    * @param delimiters String of characters each of which acts as a separator.
    * @param refs       Reference count passed to std::locale::facet base.
    */
-  delimiter_ctype(std::string delimiters, std::size_t refs = 0);
+  delimiter_ctype(std::string const &delimiters, std::size_t refs = 0);
 
 private:
   /**
@@ -68,10 +68,10 @@ private:
    * @param delimiters String of characters to classify as whitespace.
    * @return Pointer to a newly allocated classification table of size table_size.
    */
-  static mask const *make_table(std::string delimiters);
+  static mask const *make_table(std::string const &delimiters);
 };
 
-inline std::ctype<char>::mask const *delimiter_ctype::make_table(std::string delimiters) {
+inline std::ctype<char>::mask const *delimiter_ctype::make_table(std::string const &delimiters) {
   auto *table = new mask[table_size];
   std::copy(classic_table(), classic_table() + table_size, table);
   for (std::size_t i = 0; i < table_size; ++i) {
@@ -87,7 +87,7 @@ inline std::ctype<char>::mask const *delimiter_ctype::make_table(std::string del
 inline delimiter_ctype::delimiter_ctype(char delimiter, std::size_t refs)
     : ctype(make_table(std::string(1, delimiter)), true, refs) {}
 
-inline delimiter_ctype::delimiter_ctype(std::string delimiters, std::size_t refs)
+inline delimiter_ctype::delimiter_ctype(std::string const &delimiters, std::size_t refs)
     : ctype(make_table(delimiters), true, refs) {}
 
 #endif
