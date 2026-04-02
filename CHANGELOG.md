@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Branch protection hook (no-commit-to-branch) for main and develop
 - Detect-private-key pre-commit hook
 
+### Changed
+- Update clang-format to v22.1.2 for fleet-wide consistency
+
 ### Fixed
 - CI clang-tidy compile database generation and bugprone-branch-clone false positive on option-parsing chains
 - Guard continuous-only CLI variables with MRMR_HAS_CONTINUOUS to prevent unused-variable warnings without -DMRMR_CONTINUOUS=ON
