@@ -1,3 +1,9 @@
+# Default stage for every hook in this config. Individual hooks can opt
+# into a different stage (e.g. linters/tests at pre-push) by setting
+# their own `stages:`. Making this explicit avoids pre-commit's fallback
+# behavior of running hooks at every stage.
+default_stages: [pre-commit]
+
 repos:
   # --- Commit stage: formatting + file hygiene ---
   - repo: https://github.com/pre-commit/pre-commit-hooks
