@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [develop, main]
 
+# Cancel older runs for the same ref when a new push/PR event arrives.
+# Saves CI cycles on rapid re-pushes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
