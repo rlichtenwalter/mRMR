@@ -22,7 +22,11 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       - run: uvx --with pre-commit==4.5.1 pre-commit run --all-files --hook-stage pre-commit
+        env:
+          SKIP: no-commit-to-branch
       - run: uvx --with pre-commit==4.5.1 pre-commit run --all-files --hook-stage pre-push
+        env:
+          SKIP: no-commit-to-branch
 
   build-and-test:
     runs-on: ubuntu-latest
