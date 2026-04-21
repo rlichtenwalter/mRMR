@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - CI clang-tidy compile database generation and bugprone-branch-clone false positive on option-parsing chains
 - Guard continuous-only CLI variables with MRMR_HAS_CONTINUOUS to prevent unused-variable warnings without -DMRMR_CONTINUOUS=ON
 - Resolve all clang-tidy warnings across headers, CLI, and tests; align CI lint config with local .clang-tidy
+- Skip the `no-commit-to-branch` pre-commit hook in CI `pre-commit` steps: the hook guards local commits to `main`/`develop` and fired spuriously when CI checked out one of those branches, failing the job despite no real commit
 
 ## [1.0.0] - 2026-03-18
 
