@@ -21,6 +21,21 @@ cmake -B build
 cmake --build build
 ```
 
+To build a sanitized Debug configuration (AddressSanitizer +
+UndefinedBehaviorSanitizer on every target):
+
+```bash
+cmake -B build-san -DCMAKE_BUILD_TYPE=Debug -DMRMR_SANITIZE=ON
+cmake --build build-san
+ASAN_OPTIONS=halt_on_error=1:detect_leaks=1:abort_on_error=1 \
+UBSAN_OPTIONS=halt_on_error=1:abort_on_error=1:print_stacktrace=1 \
+ctest --test-dir build-san --output-on-failure
+```
+
+The `sanitize` CI job runs this combination on every PR.
+`-fno-sanitize-recover=all` makes every sanitizer diagnostic a hard
+error; Release builds are never affected.
+
 ## Testing
 
 ```bash

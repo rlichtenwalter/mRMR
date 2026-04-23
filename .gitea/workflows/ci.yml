@@ -66,3 +66,25 @@ jobs:
 
       - name: Run clang-tidy
         run: clang-tidy -p build include/mrmr/*.hpp tools/*.cpp
+
+  sanitize:
+    # Debug build with AddressSanitizer + UndefinedBehaviorSanitizer.
+    # Runs the full test suite so any UB or memory bug instantiated in
+    # test code fails the PR. Halt-on-error is enforced at compile time
+    # via -fno-sanitize-recover=all; the env vars are belt-and-braces in
+    # case the flag is ever changed.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (Debug + sanitizers)
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Debug -DMRMR_SANITIZE=ON
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test under sanitizers
+        env:
+          ASAN_OPTIONS: halt_on_error=1:detect_leaks=1:abort_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:abort_on_error=1:print_stacktrace=1
+        run: ctest --test-dir build --output-on-failure

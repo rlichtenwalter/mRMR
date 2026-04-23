@@ -12,28 +12,26 @@ include(Catch)
 # --- Unit tests ---
 add_executable(test_mrmr test_mrmr.cpp)
 target_link_libraries(test_mrmr PRIVATE mrmr::mrmr Catch2::Catch2WithMain)
+target_compile_options(test_mrmr PRIVATE ${MRMR_SANITIZE_FLAGS})
+target_link_options(test_mrmr    PRIVATE ${MRMR_SANITIZE_FLAGS})
 catch_discover_tests(test_mrmr)
 
 # --- Benchmarks ---
-add_executable(bench_mrmr bench_mrmr.cpp)
-target_link_libraries(bench_mrmr PRIVATE mrmr::mrmr Catch2::Catch2WithMain)
-target_compile_options(bench_mrmr PRIVATE -O3)
-
-add_executable(bench_view_access bench_view_access.cpp)
-target_link_libraries(bench_view_access PRIVATE mrmr::mrmr Catch2::Catch2WithMain)
-target_compile_options(bench_view_access PRIVATE -O3)
-
-add_executable(bench_view_tiled bench_view_tiled.cpp)
-target_link_libraries(bench_view_tiled PRIVATE mrmr::mrmr Catch2::Catch2WithMain)
-target_compile_options(bench_view_tiled PRIVATE -O3)
-
-add_executable(bench_view_1m bench_view_1m.cpp)
-target_link_libraries(bench_view_1m PRIVATE mrmr::mrmr Catch2::Catch2WithMain)
-target_compile_options(bench_view_1m PRIVATE -O3)
-
-add_executable(bench_continuous bench_continuous.cpp)
-target_link_libraries(bench_continuous PRIVATE mrmr::mrmr Catch2::Catch2WithMain)
-target_compile_options(bench_continuous PRIVATE -O3)
+# Benchmarks run at -O3 normally. Under MRMR_SANITIZE=ON, let CMake's
+# Debug preset supply -O0 -g so ASan/UBSan diagnostics attribute to
+# source lines instead of inlined/reordered -O3 output. Runtime timings
+# under sanitizers are not meaningful anyway (~2-3x sanitizer cost), so
+# the tradeoff is purely debuggability.
+set(MRMR_BENCH_TARGETS bench_mrmr bench_view_access bench_view_tiled bench_view_1m bench_continuous)
+foreach(tgt IN LISTS MRMR_BENCH_TARGETS)
+    add_executable(${tgt} ${tgt}.cpp)
+    target_link_libraries(${tgt} PRIVATE mrmr::mrmr Catch2::Catch2WithMain)
+    target_compile_options(${tgt} PRIVATE
+        $<$<NOT:$<BOOL:${MRMR_SANITIZE}>>:-O3>
+        ${MRMR_SANITIZE_FLAGS}
+    )
+    target_link_options(${tgt} PRIVATE ${MRMR_SANITIZE_FLAGS})
+endforeach()
 
 # --- CLI integration tests ---
 set(MRMR_CLI $<TARGET_FILE:mrmr-cli>)

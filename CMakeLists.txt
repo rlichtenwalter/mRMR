@@ -61,11 +61,30 @@ target_compile_options(mrmr-cli PRIVATE
     $<$<CONFIG:Debug>:-Og -g -fno-omit-frame-pointer>
 )
 
-option(MRMR_SANITIZE "Enable AddressSanitizer in Debug builds" OFF)
-if(MRMR_SANITIZE)
-    target_compile_options(mrmr-cli PRIVATE $<$<CONFIG:Debug>:-fsanitize=address>)
-    target_link_options(mrmr-cli PRIVATE $<$<CONFIG:Debug>:-fsanitize=address>)
-endif()
+# --- Sanitizers ---
+# When -DMRMR_SANITIZE=ON, every consumer of the library (CLI tool,
+# tests, benchmarks) is compiled and linked with AddressSanitizer +
+# UndefinedBehaviorSanitizer. Guarded on Debug builds so Release
+# artifacts are unaffected.
+#
+# -fno-sanitize-recover=all makes every sanitizer diagnostic a hard
+# error; without it UBSan reports and continues, which lets CI regress
+# silently.
+#
+# Flags are applied per-target rather than via the header-only INTERFACE
+# library, so build-time sanitizer requirements never leak into the
+# installed/exported targets that downstream consumers pick up via
+# find_package(mrmr). Each flag is its own generator expression
+# (specified, portable) rather than a semicolon-separated list inside a
+# single genex (depends on generator-specific split behavior).
+option(MRMR_SANITIZE "Enable AddressSanitizer + UndefinedBehaviorSanitizer in Debug builds" OFF)
+set(MRMR_SANITIZE_FLAGS
+    $<$<BOOL:${MRMR_SANITIZE}>:$<$<CONFIG:Debug>:-fsanitize=address,undefined>>
+    $<$<BOOL:${MRMR_SANITIZE}>:$<$<CONFIG:Debug>:-fno-sanitize-recover=all>>
+    $<$<BOOL:${MRMR_SANITIZE}>:$<$<CONFIG:Debug>:-fno-omit-frame-pointer>>
+)
+target_compile_options(mrmr-cli PRIVATE ${MRMR_SANITIZE_FLAGS})
+target_link_options(mrmr-cli    PRIVATE ${MRMR_SANITIZE_FLAGS})
 
 # --- Tests ---
 option(MRMR_BUILD_TESTS "Build tests" ${PROJECT_IS_TOP_LEVEL})

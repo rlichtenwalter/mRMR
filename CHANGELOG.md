@@ -10,8 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 - Branch protection hook (no-commit-to-branch) for main and develop
 - Detect-private-key pre-commit hook
+- New CI `sanitize` job that builds Debug with `MRMR_SANITIZE=ON` and runs the full ctest suite under ASan+UBSan on every PR.
 
 ### Changed
+- `MRMR_SANITIZE` now enables AddressSanitizer **and** UndefinedBehaviorSanitizer (previously only ASan), applies to every built target (CLI tool, tests, benchmarks — previously only the CLI), and passes `-fno-sanitize-recover=all` so every sanitizer diagnostic is a hard error. Benchmarks drop `-O3` when the option is ON so diagnostics attribute to source lines.
 - Update clang-format to v22.1.2 for fleet-wide consistency
 
 ### Fixed
