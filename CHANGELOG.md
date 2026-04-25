@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - New CI `sanitize` job that builds Debug with `MRMR_SANITIZE=ON` and runs the full ctest suite under ASan+UBSan on every PR.
 
 ### Changed
+- **BREAKING**: CMake minimum requirement raised from 3.21 to 3.24. CMake 3.24 introduced `cmake -B build --fresh`, a one-command cache clobber + reconfigure that eliminates the ad-hoc `rm -rf build/CMakeCache.txt` pattern. All current target distros ship CMake >= 3.24 in their default repositories (Rocky Linux 9 AppStream = 3.26.5, Rocky Linux 10 AppStream = 3.30.5, Ubuntu 24.04 LTS = 3.28.x), so the bump imposes no new constraint on contributors. Sibling C++ libraries (`vcp`, `kdtree`) receive the same bump in coordinated PRs.
 - `MRMR_SANITIZE` now enables AddressSanitizer **and** UndefinedBehaviorSanitizer (previously only ASan), applies to every built target (CLI tool, tests, benchmarks — previously only the CLI), and passes `-fno-sanitize-recover=all` so every sanitizer diagnostic is a hard error. Benchmarks drop `-O3` when the option is ON so diagnostics attribute to source lines.
 - Update clang-format to v22.1.2 for fleet-wide consistency
 

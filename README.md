@@ -16,9 +16,18 @@ Improved mRMR is a re-implementation of the minimum redundancy maximum relevance
 
 ## Building
 
+Requires CMake ≥ 3.24.
+
 ```bash
 cmake -B build
 cmake --build build
+```
+
+To force a fresh configure (drop the cached CMake state and reconfigure
+from scratch — useful after changing the toolchain or build options):
+
+```bash
+cmake -B build --fresh
 ```
 
 To build a sanitized Debug configuration (AddressSanitizer +
