@@ -113,7 +113,7 @@ TEST_CASE("bench: histogram via sorted index indirection", "[!benchmark][view-ac
     meter.measure([&] {
       scratch.assign(16, 0);
       for (std::size_t i = 0; i < 10000; ++i) {
-        ++scratch[col1[i] * 4 + col2[i]];
+        ++scratch[static_cast<std::size_t>(col1[i] * 4 + col2[i])];
       }
       return scratch[0];
     });
@@ -125,7 +125,7 @@ TEST_CASE("bench: histogram via sorted index indirection", "[!benchmark][view-ac
       scratch.assign(16, 0);
       for (std::size_t i = 0; i < indices_sorted.size(); ++i) {
         std::size_t idx = indices_sorted[i];
-        ++scratch[col1[idx] * 4 + col2[idx]];
+        ++scratch[static_cast<std::size_t>(col1[idx] * 4 + col2[idx])];
       }
       return scratch[0];
     });
@@ -137,7 +137,7 @@ TEST_CASE("bench: histogram via sorted index indirection", "[!benchmark][view-ac
       scratch.assign(16, 0);
       for (std::size_t i = 0; i < indices_unsorted.size(); ++i) {
         std::size_t idx = indices_unsorted[i];
-        ++scratch[col1[idx] * 4 + col2[idx]];
+        ++scratch[static_cast<std::size_t>(col1[idx] * 4 + col2[idx])];
       }
       return scratch[0];
     });
@@ -166,7 +166,7 @@ TEST_CASE("bench: sorted vs unsorted at 100K instances", "[!benchmark][view-acce
     meter.measure([&] {
       scratch.assign(16, 0);
       for (std::size_t i = 0; i < 100000; ++i) {
-        ++scratch[col1[i] * 4 + col2[i]];
+        ++scratch[static_cast<std::size_t>(col1[i] * 4 + col2[i])];
       }
       return scratch[0];
     });
@@ -178,7 +178,7 @@ TEST_CASE("bench: sorted vs unsorted at 100K instances", "[!benchmark][view-acce
       scratch.assign(16, 0);
       for (std::size_t i = 0; i < indices_sorted.size(); ++i) {
         std::size_t idx = indices_sorted[i];
-        ++scratch[col1[idx] * 4 + col2[idx]];
+        ++scratch[static_cast<std::size_t>(col1[idx] * 4 + col2[idx])];
       }
       return scratch[0];
     });
@@ -190,7 +190,7 @@ TEST_CASE("bench: sorted vs unsorted at 100K instances", "[!benchmark][view-acce
       scratch.assign(16, 0);
       for (std::size_t i = 0; i < indices_unsorted.size(); ++i) {
         std::size_t idx = indices_unsorted[i];
-        ++scratch[col1[idx] * 4 + col2[idx]];
+        ++scratch[static_cast<std::size_t>(col1[idx] * 4 + col2[idx])];
       }
       return scratch[0];
     });
@@ -254,7 +254,7 @@ TEST_CASE("bench: high cardinality impact", "[!benchmark][view-access]") {
     meter.measure([&] {
       scratch.assign(2500, 0);
       for (std::size_t i = 0; i < 100000; ++i) {
-        ++scratch[col1[i] * 50 + col2[i]];
+        ++scratch[static_cast<std::size_t>(col1[i] * 50 + col2[i])];
       }
       return scratch[0];
     });
@@ -266,7 +266,7 @@ TEST_CASE("bench: high cardinality impact", "[!benchmark][view-access]") {
       scratch.assign(2500, 0);
       for (std::size_t i = 0; i < indices_sorted.size(); ++i) {
         std::size_t idx = indices_sorted[i];
-        ++scratch[col1[idx] * 50 + col2[idx]];
+        ++scratch[static_cast<std::size_t>(col1[idx] * 50 + col2[idx])];
       }
       return scratch[0];
     });

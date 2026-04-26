@@ -81,7 +81,7 @@ std::size_t hist_both_mat(unsigned char const *mat1, unsigned char const *mat2, 
                           unsigned char k, std::vector<std::size_t> &scratch) {
   scratch.assign(k * k, 0);
   for (std::size_t i = 0; i < n; ++i) {
-    ++scratch[mat1[i] * k + mat2[i]];
+    ++scratch[static_cast<std::size_t>(mat1[i] * k + mat2[i])];
   }
   return scratch[0];
 }
