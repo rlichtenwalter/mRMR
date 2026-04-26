@@ -68,6 +68,13 @@ jobs:
 
   lint:
     runs-on: ubuntu-latest
+    # CC/CXX pinned to clang so the generated compile_commands.json does
+    # not include GCC-only flags (-Wlogical-op, -Wduplicated-cond) that
+    # clang-tidy cannot parse — the GCC-gated genexes in
+    # MRMR_WARNING_FLAGS evaluate to empty when CXX is clang++.
+    env:
+      CC: clang
+      CXX: clang++
     steps:
       - uses: actions/checkout@v4
 
@@ -76,8 +83,11 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Install tools
-        run: pip install pre-commit clang-tidy==20.1.0
+      - name: Install clang and tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang
+          pip install pre-commit clang-tidy==20.1.0
 
       - name: Check formatting
         run: pre-commit run clang-format --all-files
