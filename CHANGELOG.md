@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- `check-json` pre-commit hook (commit stage), validates `CMakePresets.json`
+  and any future JSON files at commit time. Closes a small gap flagged by
+  `/standards-check` (`precommit.check_json` warning).
 - Branch protection hook (no-commit-to-branch) for main and develop
 - Detect-private-key pre-commit hook
 - New CI `sanitize` job that builds Debug with `MRMR_SANITIZE=ON` and runs the full ctest suite under ASan+UBSan on every PR.
