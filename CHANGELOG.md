@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Branch protection hook (no-commit-to-branch) for main and develop
 - Detect-private-key pre-commit hook
 - New CI `sanitize` job that builds Debug with `MRMR_SANITIZE=ON` and runs the full ctest suite under ASan+UBSan on every PR.
+- `CMakePresets.json` at the repository root with three named configurations
+  (`release`, `debug`, `sanitize`) covering the meaningful build contexts
+  the project ships. Each preset has its own `binaryDir` under `build/<name>`,
+  so switching between configs no longer triggers a full rebuild — each tree
+  keeps its own warm cache. Build presets and test presets mirror configure
+  presets one-for-one; the `sanitize` test preset carries the
+  `ASAN_OPTIONS` / `UBSAN_OPTIONS` halt-on-error contract that was
+  previously duplicated inline in CI yaml. Preset file at version `3`
+  (CMake 3.21+, well within the 3.24 floor); `cmakeMinimumRequired`
+  declares 3.24 explicitly so older toolchains refuse to load it.
+  IDEs that support presets (VSCode CMake Tools, CLion, KDevelop, Qt
+  Creator) read the file directly. Schema string intentionally omitted:
+  CMake errors on `$schema` below preset version 8, and version 8
+  requires CMake 3.30 — outside our floor.
 
 ### Changed
 - CI `build-and-test` job extended with a Clang matrix entry; both GCC and Clang now build
@@ -25,6 +39,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   through test or benchmark code silently. Adding a flag to `MRMR_WARNING_FLAGS` now lands
   in every consumer build at once.
 - **BREAKING**: CMake minimum requirement raised from 3.21 to 3.24. CMake 3.24 introduced `cmake -B build --fresh`, a one-command cache clobber + reconfigure that eliminates the ad-hoc `rm -rf build/CMakeCache.txt` pattern. All current target distros ship CMake >= 3.24 in their default repositories (Rocky Linux 9 AppStream = 3.26.5, Rocky Linux 10 AppStream = 3.30.5, Ubuntu 24.04 LTS = 3.28.x), so the bump imposes no new constraint on contributors. Sibling C++ libraries (`vcp`, `kdtree`) receive the same bump in coordinated PRs.
+- `.gitea/workflows/ci.yml` now invokes presets instead of inline
+  `-DCMAKE_BUILD_TYPE=...` / `-DMRMR_SANITIZE=ON` flags. The
+  `build-and-test` matrix's `build_type: [Release, Debug]` becomes
+  `preset: [release, debug]`, the `lint` job uses `cmake --preset=release`
+  and `clang-tidy -p build/release` (compile_commands.json now exported
+  unconditionally from the root CMakeLists), and the `sanitize` job
+  uses `cmake --preset=sanitize` with `ctest --preset=sanitize`.
+  Sanitizer runtime options now live on the test preset, not the
+  workflow yaml.
+- `CMAKE_EXPORT_COMPILE_COMMANDS` is now set unconditionally at the top
+  of `CMakeLists.txt` (matching the sibling `vcp` and `kdtree`
+  conventions) so editor LSPs and the `lint` CI step both find a
+  compilation database without per-invocation `-D` flags.
+- `.gitignore` simplified: the `build-*/` glob is removed in favor of
+  the existing `build/` rule, since presets place all per-config trees
+  under `build/<name>/`.
 - `MRMR_SANITIZE` now enables AddressSanitizer **and** UndefinedBehaviorSanitizer (previously only ASan), applies to every built target (CLI tool, tests, benchmarks — previously only the CLI), and passes `-fno-sanitize-recover=all` so every sanitizer diagnostic is a hard error. Benchmarks drop `-O3` when the option is ON so diagnostics attribute to source lines.
 - Update clang-format to v22.1.2 for fleet-wide consistency
 

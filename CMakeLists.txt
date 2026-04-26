@@ -9,6 +9,11 @@ project(mrmr
     DESCRIPTION "Improved mRMR feature selection algorithm"
 )
 
+# Always emit compile_commands.json so editor LSPs (clangd) and
+# clang-tidy in CI can find compilation database entries without the
+# caller having to remember -DCMAKE_EXPORT_COMPILE_COMMANDS=ON.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # --- Header-only library ---
 add_library(mrmr INTERFACE)
 add_library(mrmr::mrmr ALIAS mrmr)
