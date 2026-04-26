@@ -11,6 +11,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `check-json` pre-commit hook (commit stage), validates `CMakePresets.json`
   and any future JSON files at commit time. Closes a small gap flagged by
   `/standards-check` (`precommit.check_json` warning).
+- Sibling-alignment cleanup matching the conventions already in `vcp` and
+  `kdtree`:
+  - **C++ standard bumped to C++20** (`cxx_std_14` → `cxx_std_20` in
+    `CMakeLists.txt`). C++14 was a valid subset of C++20, so no source
+    changes were forced; the bump aligns the minimum standard with `vcp`
+    and clears the way for opportunistic adoption of C++20 idioms
+    (concepts, `std::span`, `std::bit_width`, etc.) at the next natural
+    refactor point. README updated to reflect "C++20 compliant code base".
+  - `.clang-tidy` suppresses `performance-enum-size` and
+    `misc-use-internal-linkage`, matching `vcp`/`kdtree`. Both checks
+    shipped with clang-tidy 20.x and were never propagated to mRMR.
+  - CI `lint` job's `clang-tidy` invocation now also covers `test/*.cpp`
+    so test code is held to the same lint contract as the library and
+    CLI (matching `vcp` and `kdtree`).
+  - CI `lint` job dropped the redundant `Setup Python` action, the
+    `pip install pre-commit` line, and the standalone `Check formatting`
+    step — clang-format is already enforced by the `quality` job's
+    pre-commit run, and the lint job only needs `clang-tidy` installed.
+    The result matches the `vcp`/`kdtree` lint job shape exactly.
+  - CI job order normalized to `build-and-test` → `quality` → `lint` →
+    `sanitize`, matching `vcp`/`kdtree`. Build success is the most
+    fundamental signal; lint/sanitize feedback is uninteresting if the
+    code does not compile, so the file reads top-down from "does this
+    build" to progressively more specialized validations. Jobs all run
+    in parallel anyway — this is purely about file readability.
+  - Pre-commit hooks now declare `stages: [pre-commit]` explicitly per
+    hook (in addition to the global `default_stages`), matching `vcp`
+    and `kdtree`. Redundant with the default but makes intent obvious.
+  - Release compile flags include `-DNDEBUG` explicitly, matching the
+    vcp pattern. CMake's default `Release` config supplies `-DNDEBUG`
+    on GCC/Clang already, so this is a no-op at compile time, but
+    spelling it out alongside `-O3 -fomit-frame-pointer` keeps the
+    intended Release contract visible in one place rather than split
+    between project flags and CMake defaults.
+  - `.gitignore` entries reordered to alphabetical (`build/`, `.cache/`,
+    `.claude/`, `**/.vscode`, `.nfs*`), matching `vcp` and `kdtree`.
+    Functionally equivalent (gitignore order is irrelevant) — purely
+    cosmetic alignment.
 - Branch protection hook (no-commit-to-branch) for main and develop
 - Detect-private-key pre-commit hook
 - New CI `sanitize` job that builds Debug with `MRMR_SANITIZE=ON` and runs the full ctest suite under ASan+UBSan on every PR.

@@ -13,21 +13,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  quality:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install uv + pre-commit
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-      - run: uvx --with pre-commit==4.5.1 pre-commit run --all-files --hook-stage pre-commit
-        env:
-          SKIP: no-commit-to-branch
-      - run: uvx --with pre-commit==4.5.1 pre-commit run --all-files --hook-stage pre-push
-        env:
-          SKIP: no-commit-to-branch
-
   build-and-test:
     runs-on: ubuntu-latest
     strategy:
@@ -66,6 +51,21 @@ jobs:
       - name: Test
         run: ctest --preset=${{ matrix.preset }}
 
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv + pre-commit
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - run: uvx --with pre-commit==4.5.1 pre-commit run --all-files --hook-stage pre-commit
+        env:
+          SKIP: no-commit-to-branch
+      - run: uvx --with pre-commit==4.5.1 pre-commit run --all-files --hook-stage pre-push
+        env:
+          SKIP: no-commit-to-branch
+
   lint:
     runs-on: ubuntu-latest
     # CC/CXX pinned to clang so the generated compile_commands.json does
@@ -78,25 +78,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-
-      - name: Install clang and tools
+      - name: Install clang and clang-tidy
         run: |
           sudo apt-get update
           sudo apt-get install -y clang
-          pip install pre-commit clang-tidy==20.1.0
+          pip install clang-tidy==20.1.0
 
-      - name: Check formatting
-        run: pre-commit run clang-format --all-files
-
-      - name: Configure for compile_commands.json
+      - name: Configure (for compile_commands.json)
         run: cmake --preset=release
 
       - name: Run clang-tidy
-        run: clang-tidy -p build/release include/mrmr/*.hpp include/mrmr/detail/*.hpp tools/*.cpp
+        run: clang-tidy -p build/release include/mrmr/*.hpp include/mrmr/detail/*.hpp tools/*.cpp test/*.cpp
 
   sanitize:
     # Debug build with AddressSanitizer + UndefinedBehaviorSanitizer.
