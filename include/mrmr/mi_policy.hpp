@@ -249,13 +249,17 @@ double compute_mi(DataSource const &data,
       }
     }
   } else {
+    using value_type = typename DataSource::value_type;
     for (std::size_t i = 0; i < a1_num_values; ++i) {
       for (std::size_t j = 0; j < a2_num_values; ++j) {
         auto count = scratch[i * a2_num_values + j];
         double joint_prob = policy.normalize(count, inv_n);
         if (joint_prob > 0) {
-          double marginal_i = info1.marginal_probability(i);
-          double marginal_j = info2.marginal_probability(j);
+          // i and j are bounded by a1/a2_num_values, themselves bounded
+          // by the storage type T's domain (asserted to fit in [0, 255]),
+          // so the narrowing cast to T is value-preserving.
+          double marginal_i = info1.marginal_probability(static_cast<value_type>(i));
+          double marginal_j = info2.marginal_probability(static_cast<value_type>(j));
           mi += joint_prob * std::log2(joint_prob / (marginal_i * marginal_j));
         }
       }

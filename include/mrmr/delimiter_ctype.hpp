@@ -75,7 +75,9 @@ inline std::ctype<char>::mask const *delimiter_ctype::make_table(std::string con
   auto *table = new mask[table_size];
   std::copy(classic_table(), classic_table() + table_size, table);
   for (std::size_t i = 0; i < table_size; ++i) {
-    table[i] &= ~space;
+    // `~space` promotes to int; cast back to mask narrows but is
+    // value-preserving for the bit-clear operation.
+    table[i] &= static_cast<mask>(~space);
   }
   for (auto delimiter : delimiters) {
     table[static_cast<unsigned char>(delimiter)] |= space;

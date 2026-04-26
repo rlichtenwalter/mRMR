@@ -107,7 +107,12 @@ attribute_information<T>::attribute_information(ForwardIterator first, ForwardIt
   _entropy = -1 * (_pdf * std::log(_pdf)).sum() / std::log(2);
 }
 
-template <typename T> T attribute_information<T>::num_values() const { return _pdf.size(); }
+template <typename T> T attribute_information<T>::num_values() const {
+  // _pdf.size() is std::size_t but T (the storage type) is constrained to
+  // hold values in [0, 255] by the static_assert in dataset.hpp. The cast
+  // is value-preserving for any well-formed instance.
+  return static_cast<T>(_pdf.size());
+}
 
 template <typename T> double attribute_information<T>::entropy() const { return _entropy; }
 

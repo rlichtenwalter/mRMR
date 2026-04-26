@@ -6,6 +6,19 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(Catch2)
 
+# Mark Catch2's headers as SYSTEM so third-party warnings (notably
+# Clang's -Wdouble-promotion firing inside catch_matchers_impl.hpp's
+# float-vs-double comparison helpers) do not break our builds under
+# -Werror. CMake 3.25 added a SYSTEM keyword to FetchContent_Declare
+# that would do this declaratively; the project floor is still 3.24,
+# so we move INTERFACE_INCLUDE_DIRECTORIES into
+# INTERFACE_SYSTEM_INCLUDE_DIRECTORIES manually post-MakeAvailable.
+get_target_property(_catch2_includes Catch2 INTERFACE_INCLUDE_DIRECTORIES)
+if(_catch2_includes)
+    set_target_properties(Catch2 PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
+    target_include_directories(Catch2 SYSTEM INTERFACE ${_catch2_includes})
+endif()
+
 list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 include(Catch)
 

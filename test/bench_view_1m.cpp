@@ -51,7 +51,7 @@ std::size_t hist_direct(unsigned char const *c1, unsigned char const *c2, std::s
                         unsigned char k, std::vector<std::size_t> &scratch) {
   scratch.assign(k * k, 0);
   for (std::size_t i = 0; i < n; ++i) {
-    ++scratch[c1[i] * k + c2[i]];
+    ++scratch[static_cast<std::size_t>(c1[i] * k + c2[i])];
   }
   return scratch[0];
 }
@@ -62,7 +62,7 @@ std::size_t hist_sorted_ind(unsigned char const *c1, unsigned char const *c2,
   scratch.assign(k * k, 0);
   for (std::size_t i = 0; i < indices.size(); ++i) {
     std::size_t idx = indices[i];
-    ++scratch[c1[idx] * k + c2[idx]];
+    ++scratch[static_cast<std::size_t>(c1[idx] * k + c2[idx])];
   }
   return scratch[0];
 }

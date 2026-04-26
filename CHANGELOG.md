@@ -38,6 +38,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   received only `${MRMR_SANITIZE_FLAGS}`, so warnings the CLI would error on could slide
   through test or benchmark code silently. Adding a flag to `MRMR_WARNING_FLAGS` now lands
   in every consumer build at once.
+- `MRMR_WARNING_FLAGS` expanded with `-Wconversion -Wsign-conversion
+  -Wshadow -Wnull-dereference -Wdouble-promotion -Wimplicit-fallthrough`
+  plus GCC-only `-Wlogical-op` and `-Wduplicated-cond`. Mechanical fallout:
+  - `attribute_information::num_values()` now `static_cast<T>(_pdf.size())`;
+    T is constrained to the [0, 255] domain by the upstream
+    `static_assert`, so the narrowing is value-preserving.
+  - `compute_mi()` now casts the loop indices `i` and `j` to
+    `value_type` at the `marginal_probability(...)` call sites.
+  - `delimiter_ctype::make_table()` casts `~space` to `mask` when
+    bit-clearing the table.
+  - Five `bench_view_*` benchmark histogram updates
+    (`++scratch[col1[i] * k + col2[i]]`) now cast the index
+    expression to `std::size_t` so the implicit `unsigned char ->
+    int -> size_t` chain becomes explicit.
+- Catch2's INTERFACE_INCLUDE_DIRECTORIES are reassigned to
+  INTERFACE_SYSTEM_INCLUDE_DIRECTORIES post-`FetchContent_MakeAvailable`,
+  so warnings from Catch2's own headers (notably Clang's
+  `-Wdouble-promotion` firing inside `catch_matchers_impl.hpp`'s
+  float-vs-double helpers) no longer break `-Werror` builds. CMake
+  3.25 added a `SYSTEM` keyword to `FetchContent_Declare` that would
+  do this declaratively; the project floor is 3.24 so we move the
+  property manually.
 - **BREAKING**: CMake minimum requirement raised from 3.21 to 3.24. CMake 3.24 introduced `cmake -B build --fresh`, a one-command cache clobber + reconfigure that eliminates the ad-hoc `rm -rf build/CMakeCache.txt` pattern. All current target distros ship CMake >= 3.24 in their default repositories (Rocky Linux 9 AppStream = 3.26.5, Rocky Linux 10 AppStream = 3.30.5, Ubuntu 24.04 LTS = 3.28.x), so the bump imposes no new constraint on contributors. Sibling C++ libraries (`vcp`, `kdtree`) receive the same bump in coordinated PRs.
 - `.gitea/workflows/ci.yml` now invokes presets instead of inline
   `-DCMAKE_BUILD_TYPE=...` / `-DMRMR_SANITIZE=ON` flags. The
