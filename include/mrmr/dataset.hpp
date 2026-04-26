@@ -29,7 +29,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <limits>
 #include <locale>
 #include <mrmr/attribute_information.hpp>
-#include <mrmr/delimiter_ctype.hpp>
+#include <mrmr/detail/delimiter_ctype.hpp>
 #include <mrmr/matrix.hpp>
 #include <mrmr/mi_policy.hpp>
 #include <mrmr/typedef.hpp>

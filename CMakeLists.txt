@@ -28,7 +28,7 @@ target_compile_features(mrmr INTERFACE cxx_std_14)
 set(MRMR_PUBLIC_HEADERS
     include/mrmr/attribute_information.hpp
     include/mrmr/dataset.hpp
-    include/mrmr/delimiter_ctype.hpp
+    include/mrmr/detail/delimiter_ctype.hpp
     include/mrmr/matrix.hpp
     include/mrmr/mrmr.hpp
     include/mrmr/typedef.hpp

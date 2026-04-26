@@ -18,8 +18,8 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef MRMR_DELIMITER_CTYPE_HPP
-#define MRMR_DELIMITER_CTYPE_HPP
+#ifndef MRMR_DETAIL_DELIMITER_CTYPE_HPP
+#define MRMR_DETAIL_DELIMITER_CTYPE_HPP
 
 #include <algorithm>
 #include <locale>

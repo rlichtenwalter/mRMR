@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- `check-json` pre-commit hook (commit stage), validates `CMakePresets.json`
+  and any future JSON files at commit time. Closes a small gap flagged by
+  `/standards-check` (`precommit.check_json` warning).
 - Branch protection hook (no-commit-to-branch) for main and develop
 - Detect-private-key pre-commit hook
 - New CI `sanitize` job that builds Debug with `MRMR_SANITIZE=ON` and runs the full ctest suite under ASan+UBSan on every PR.
@@ -27,6 +30,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   requires CMake 3.30 — outside our floor.
 
 ### Changed
+- **API surface (technically breaking but unadvertised):** moved
+  `delimiter_ctype.hpp` from `include/mrmr/` to `include/mrmr/detail/`.
+  The class is a `std::ctype<char>` facet used internally by
+  `dataset.hpp`, `continuous_dataset.hpp`, and `mixed_dataset.hpp` to
+  imbue input streams during file parsing — never instantiated directly
+  by user code, never documented in the README, and not referenced by
+  any test. Moving to `detail/` makes the public/internal split visible
+  in the layout and matches the `vcp::detail::` precedent in the sibling
+  library. Public headers update their `#include` to
+  `<mrmr/detail/delimiter_ctype.hpp>`. The install set (FILE_SET HEADERS
+  in `CMakeLists.txt`) is updated to ship the new path so existing
+  build setups that re-export the header (transitively) keep working;
+  any downstream that was directly including `<mrmr/delimiter_ctype.hpp>`
+  needs to update the path. The CI `lint` job's `clang-tidy` glob is
+  extended to `include/mrmr/*.hpp include/mrmr/detail/*.hpp tools/*.cpp`
+  so the moved header is still under static analysis.
 - CI `build-and-test` job extended with a Clang matrix entry; both GCC and Clang now build
   the library, CLI, tests, and benchmarks, and run the full ctest suite at Release and Debug.
   The library is header-only and implicitly promised Clang compatibility; the matrix makes
