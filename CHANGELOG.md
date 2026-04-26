@@ -13,6 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - New CI `sanitize` job that builds Debug with `MRMR_SANITIZE=ON` and runs the full ctest suite under ASan+UBSan on every PR.
 
 ### Changed
+- CI `build-and-test` job extended with a Clang matrix entry; both GCC and Clang now build
+  the library, CLI, tests, and benchmarks, and run the full ctest suite at Release and Debug.
+  The library is header-only and implicitly promised Clang compatibility; the matrix makes
+  that promise enforceable on every PR. Matrix is `{compiler: gcc, clang} × {build_type: Release, Debug}`
+  with `fail-fast: false`.
+- Test and benchmark targets now compile with the same warning flags as the CLI tool
+  (`-Wall -Wextra -Werror -pedantic -Wno-unused-local-typedefs`), via a new shared
+  `MRMR_WARNING_FLAGS` CMake variable. Previously `test_mrmr` and the five benchmark targets
+  received only `${MRMR_SANITIZE_FLAGS}`, so warnings the CLI would error on could slide
+  through test or benchmark code silently. Adding a flag to `MRMR_WARNING_FLAGS` now lands
+  in every consumer build at once.
 - **BREAKING**: CMake minimum requirement raised from 3.21 to 3.24. CMake 3.24 introduced `cmake -B build --fresh`, a one-command cache clobber + reconfigure that eliminates the ad-hoc `rm -rf build/CMakeCache.txt` pattern. All current target distros ship CMake >= 3.24 in their default repositories (Rocky Linux 9 AppStream = 3.26.5, Rocky Linux 10 AppStream = 3.30.5, Ubuntu 24.04 LTS = 3.28.x), so the bump imposes no new constraint on contributors. Sibling C++ libraries (`vcp`, `kdtree`) receive the same bump in coordinated PRs.
 - `MRMR_SANITIZE` now enables AddressSanitizer **and** UndefinedBehaviorSanitizer (previously only ASan), applies to every built target (CLI tool, tests, benchmarks — previously only the CLI), and passes `-fno-sanitize-recover=all` so every sanitizer diagnostic is a hard error. Benchmarks drop `-O3` when the option is ON so diagnostics attribute to source lines.
 - Update clang-format to v22.1.2 for fleet-wide consistency

@@ -12,7 +12,7 @@ include(Catch)
 # --- Unit tests ---
 add_executable(test_mrmr test_mrmr.cpp)
 target_link_libraries(test_mrmr PRIVATE mrmr::mrmr Catch2::Catch2WithMain)
-target_compile_options(test_mrmr PRIVATE ${MRMR_SANITIZE_FLAGS})
+target_compile_options(test_mrmr PRIVATE ${MRMR_WARNING_FLAGS} ${MRMR_SANITIZE_FLAGS})
 target_link_options(test_mrmr    PRIVATE ${MRMR_SANITIZE_FLAGS})
 catch_discover_tests(test_mrmr)
 
@@ -28,6 +28,7 @@ foreach(tgt IN LISTS MRMR_BENCH_TARGETS)
     target_link_libraries(${tgt} PRIVATE mrmr::mrmr Catch2::Catch2WithMain)
     target_compile_options(${tgt} PRIVATE
         $<$<NOT:$<BOOL:${MRMR_SANITIZE}>>:-O3>
+        ${MRMR_WARNING_FLAGS}
         ${MRMR_SANITIZE_FLAGS}
     )
     target_link_options(${tgt} PRIVATE ${MRMR_SANITIZE_FLAGS})

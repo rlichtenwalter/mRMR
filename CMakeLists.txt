@@ -55,8 +55,20 @@ target_link_libraries(mrmr-cli PRIVATE mrmr::mrmr)
 target_compile_definitions(mrmr-cli PRIVATE MRMR_VERSION="${PROJECT_VERSION}")
 set_target_properties(mrmr-cli PROPERTIES OUTPUT_NAME mrmr)
 
-target_compile_options(mrmr-cli PRIVATE
+# --- Warning flags ---
+# Shared baseline applied to every target that consumes the library
+# (CLI, tests, benchmarks). Centralized so that a flag added here lands
+# in every consumer build at once and the test/benchmark targets cannot
+# silently slide past warnings the CLI would error on.
+#
+# -Wno-unused-local-typedefs suppresses noise from CRTP/SFINAE-style
+# helpers in the public headers.
+set(MRMR_WARNING_FLAGS
     -Wall -Wextra -Werror -pedantic -Wno-unused-local-typedefs
+)
+
+target_compile_options(mrmr-cli PRIVATE
+    ${MRMR_WARNING_FLAGS}
     $<$<CONFIG:Release>:-O3 -flto -fomit-frame-pointer>
     $<$<CONFIG:Debug>:-Og -g -fno-omit-frame-pointer>
 )
