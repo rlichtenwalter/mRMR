@@ -30,7 +30,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <iostream>
 #include <limits>
 #include <locale>
-#include <mrmr/delimiter_ctype.hpp>
+#include <mrmr/detail/delimiter_ctype.hpp>
 #include <mrmr/ksg_estimator.hpp>
 #include <mrmr/matrix.hpp>
 #include <stdexcept>
