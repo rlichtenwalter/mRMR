@@ -43,7 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   in `CMakeLists.txt`) is updated to ship the new path so existing
   build setups that re-export the header (transitively) keep working;
   any downstream that was directly including `<mrmr/delimiter_ctype.hpp>`
-  needs to update the path.
+  needs to update the path. The CI `lint` job's `clang-tidy` glob is
+  extended to `include/mrmr/*.hpp include/mrmr/detail/*.hpp tools/*.cpp`
+  so the moved header is still under static analysis.
 - CI `build-and-test` job extended with a Clang matrix entry; both GCC and Clang now build
   the library, CLI, tests, and benchmarks, and run the full ctest suite at Release and Debug.
   The library is header-only and implicitly promised Clang compatibility; the matrix makes

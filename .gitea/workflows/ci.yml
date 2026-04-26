@@ -96,7 +96,7 @@ jobs:
         run: cmake --preset=release
 
       - name: Run clang-tidy
-        run: clang-tidy -p build/release include/mrmr/*.hpp tools/*.cpp
+        run: clang-tidy -p build/release include/mrmr/*.hpp include/mrmr/detail/*.hpp tools/*.cpp
 
   sanitize:
     # Debug build with AddressSanitizer + UndefinedBehaviorSanitizer.
