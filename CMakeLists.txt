@@ -55,10 +55,37 @@ target_link_libraries(mrmr-cli PRIVATE mrmr::mrmr)
 target_compile_definitions(mrmr-cli PRIVATE MRMR_VERSION="${PROJECT_VERSION}")
 set_target_properties(mrmr-cli PROPERTIES OUTPUT_NAME mrmr)
 
-target_compile_options(mrmr-cli PRIVATE
+# --- Warning flags ---
+# Shared baseline applied to every target that consumes the library
+# (CLI, tests, benchmarks). Centralized so that a flag added here lands
+# in every consumer build at once and the test/benchmark targets cannot
+# silently slide past warnings the CLI would error on.
+#
+# -Wno-unused-local-typedefs suppresses noise from CRTP/SFINAE-style
+# helpers in the public headers.
+set(MRMR_WARNING_FLAGS
     -Wall -Wextra -Werror -pedantic -Wno-unused-local-typedefs
-    $<$<CONFIG:Release>:-O3 -flto -fomit-frame-pointer>
+)
+
+# Clang's -flto produces LLVM bitcode that the default GNU `ld` cannot
+# read ("file format not recognized"). Route Clang link steps through
+# `lld`, which speaks bitcode natively. CI installs `lld` alongside
+# `clang`. GCC builds keep their default linker.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    add_link_options(-fuse-ld=lld)
+endif()
+
+target_compile_options(mrmr-cli PRIVATE
+    ${MRMR_WARNING_FLAGS}
+    $<$<CONFIG:Release>:-O3 -fomit-frame-pointer>
     $<$<CONFIG:Debug>:-Og -g -fno-omit-frame-pointer>
+)
+# Enable LTO via the CMake property rather than a raw -flto flag.
+# CMake handles the gcc-vs-clang toolchain difference (gcc-ar /
+# gcc-ranlib for gcc; llvm-ar / llvm-ranlib for clang) automatically,
+# selecting -flto / -flto=thin / -flto=auto as appropriate per compiler.
+set_target_properties(mrmr-cli PROPERTIES
+    INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE
 )
 
 # --- Sanitizers ---
