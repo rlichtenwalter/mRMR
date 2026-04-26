@@ -33,7 +33,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        build_type: [Release, Debug]
+        # `preset` selects the configuration from CMakePresets.json; the
+        # `cc`/`cxx` env vars are read by CMake's compiler detection. The
+        # presets are compiler-agnostic, so the same `release`/`debug`
+        # preset is used by both gcc and clang matrix entries.
+        preset: [release, debug]
         compiler: [gcc, clang]
         include:
           - compiler: gcc
@@ -54,13 +58,13 @@ jobs:
           sudo apt-get install -y clang lld
 
       - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        run: cmake --preset=${{ matrix.preset }}
 
       - name: Build
-        run: cmake --build build
+        run: cmake --build --preset=${{ matrix.preset }}
 
       - name: Test
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --preset=${{ matrix.preset }}
 
   lint:
     runs-on: ubuntu-latest
@@ -79,10 +83,10 @@ jobs:
         run: pre-commit run clang-format --all-files
 
       - name: Configure for compile_commands.json
-        run: cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+        run: cmake --preset=release
 
       - name: Run clang-tidy
-        run: clang-tidy -p build include/mrmr/*.hpp tools/*.cpp
+        run: clang-tidy -p build/release include/mrmr/*.hpp tools/*.cpp
 
   sanitize:
     # Debug build with AddressSanitizer + UndefinedBehaviorSanitizer.
@@ -95,13 +99,12 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Configure (Debug + sanitizers)
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Debug -DMRMR_SANITIZE=ON
+        run: cmake --preset=sanitize
 
       - name: Build
-        run: cmake --build build
+        run: cmake --build --preset=sanitize
 
       - name: Test under sanitizers
-        env:
-          ASAN_OPTIONS: halt_on_error=1:detect_leaks=1:abort_on_error=1
-          UBSAN_OPTIONS: halt_on_error=1:abort_on_error=1:print_stacktrace=1
-        run: ctest --test-dir build --output-on-failure
+        # ASAN_OPTIONS / UBSAN_OPTIONS are set on the sanitize test preset
+        # itself; listing them here would just duplicate the preset.
+        run: ctest --preset=sanitize
