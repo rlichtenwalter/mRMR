@@ -18,6 +18,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <sstream>
@@ -212,7 +213,7 @@ TEST_CASE("mrmr with all-constant attributes", "[mrmr]") {
 
   // No duplicate ranks
   std::vector<std::size_t> sorted_ranks(ranks.begin(), ranks.end());
-  std::sort(sorted_ranks.begin(), sorted_ranks.end());
+  std::ranges::sort(sorted_ranks);
   for (std::size_t i = 1; i < sorted_ranks.size(); ++i) {
     REQUIRE(sorted_ranks[i] != sorted_ranks[i - 1]);
   }

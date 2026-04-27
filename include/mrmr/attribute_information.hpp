@@ -26,6 +26,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <iterator>
 #include <limits>
 #include <mrmr/typedef.hpp>
+#include <numbers>
 #include <valarray>
 
 /**
@@ -103,8 +104,8 @@ attribute_information<T>::attribute_information(ForwardIterator first, ForwardIt
                [](unsigned int freq) { return freq != 0; });
   _pdf = _pdf / static_cast<double>(count);
 
-  // compute entropy
-  _entropy = -1 * (_pdf * std::log(_pdf)).sum() / std::log(2);
+  // compute entropy (natural-log result divided by ln(2) yields log2)
+  _entropy = -1 * (_pdf * std::log(_pdf)).sum() / std::numbers::ln2;
 }
 
 template <typename T> T attribute_information<T>::num_values() const {

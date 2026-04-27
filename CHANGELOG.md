@@ -27,9 +27,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
     `namespace mrmr { namespace detail { ... } }` patterns) — the
     suppression preserves the current namespace style as an explicit
     project choice.
-  - CI `lint` job's `clang-tidy` invocation now also covers `test/*.cpp`
-    so test code is held to the same lint contract as the library and
-    CLI (matching `vcp` and `kdtree`).
+  - C++20 modernizations applied across the library, CLI, and tests to
+    satisfy the active clang-tidy checks at the new standard:
+    - `std::sort(it, it)` -> `std::ranges::sort(range)` in
+      `dataset_view.hpp`, `mrmr.hpp`, `mrmre.hpp`, `test_mrmr.cpp`,
+      and the `bench_*` benchmarks (`modernize-use-ranges`).
+    - `std::log(2)` -> `std::numbers::ln2` in
+      `attribute_information.hpp` (`modernize-use-std-numbers`),
+      with `<numbers>` added to the include list.
+    - Index-counted `for (size_t i = 0; i < v.size(); ++i)` -> range-
+      based `for (auto x : v)` in the `bench_view_*` benchmarks
+      (`modernize-loop-convert`).
+    - `getopt`'s `option` array initialized with C++20 designated
+      initializers (`{.name = ..., .has_arg = ..., ...}`) in
+      `mrmr-cli.cpp` (`modernize-use-designated-initializers`).
+    - `dataset` constructor calls in benchmark factory functions use
+      braced-init-list returns (`modernize-return-braced-init-list`).
+    - Histogram bench functions cast one operand to `std::size_t`
+      before the `unsigned char * unsigned char` multiplication in
+      `bench_view_1m.cpp` and `bench_view_tiled.cpp`
+      (`bugprone-implicit-widening-of-multiplication-result`).
+    - Bootstrap RNG seeded via `std::seed_seq` in `mrmre.hpp` to
+      avoid the spurious `bugprone-narrowing-conversions` diagnostic
+      that fires on the direct `std::mt19937(seed)` call when `seed`
+      is `unsigned int` (`std::mt19937::result_type` is platform-
+      dependent and the check's display ("aka 'int'") is misleading;
+      seed_seq is the documented idiom for non-trivial seeding).
+  - CI `lint` job's `clang-tidy` invocation now covers `tools/*.cpp`
+    and `test/*.cpp` so test code is held to the same lint contract as
+    the library and CLI. Headers are no longer passed directly to
+    `clang-tidy`; the `HeaderFilterRegex` in `.clang-tidy` propagates
+    diagnostics back to public headers when those headers are
+    transitively included by a source TU. Direct header invocation
+    forced clang-tidy into a "running without flags" fallback (no
+    `compile_commands.json` entry exists for headers in isolation),
+    which broke parsing for any C++20 syntax (`requires`, `<=>`, etc.)
+    that wasn't tokenizable under the default C++17 fallback.
   - CI `lint` job dropped the redundant `Setup Python` action, the
     `pip install pre-commit` line, and the standalone `Check formatting`
     step — clang-format is already enforced by the `quality` job's

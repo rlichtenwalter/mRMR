@@ -43,7 +43,7 @@ struct test_data {
     for (auto &idx : sorted_indices) {
       idx = idist(gen);
     }
-    std::sort(sorted_indices.begin(), sorted_indices.end());
+    std::ranges::sort(sorted_indices);
   }
 
   unsigned char const *col(std::size_t c) const { return &columns[c * n]; }
@@ -53,11 +53,10 @@ struct test_data {
 std::size_t hist_two_indirected(test_data const &td, std::size_t c1, std::size_t c2,
                                 std::vector<std::size_t> &scratch) {
   std::size_t k = td.cardinality;
-  scratch.assign(k * k, 0);
+  scratch.assign(static_cast<std::size_t>(k) * k, 0);
   auto const *col1 = td.col(c1);
   auto const *col2 = td.col(c2);
-  for (std::size_t i = 0; i < td.sorted_indices.size(); ++i) {
-    std::size_t idx = td.sorted_indices[i];
+  for (auto idx : td.sorted_indices) {
     ++scratch[col1[idx] * k + col2[idx]];
   }
   return scratch[0];
@@ -67,7 +66,7 @@ std::size_t hist_two_indirected(test_data const &td, std::size_t c1, std::size_t
 std::size_t hist_one_mat_one_ind(unsigned char const *mat_col, test_data const &td, std::size_t c2,
                                  std::vector<std::size_t> &scratch) {
   std::size_t k = td.cardinality;
-  scratch.assign(k * k, 0);
+  scratch.assign(static_cast<std::size_t>(k) * k, 0);
   auto const *col2 = td.col(c2);
   for (std::size_t i = 0; i < td.sorted_indices.size(); ++i) {
     std::size_t idx = td.sorted_indices[i];
@@ -79,7 +78,7 @@ std::size_t hist_one_mat_one_ind(unsigned char const *mat_col, test_data const &
 // Histogram: both columns materialized (fully sequential)
 std::size_t hist_both_mat(unsigned char const *mat1, unsigned char const *mat2, std::size_t n,
                           unsigned char k, std::vector<std::size_t> &scratch) {
-  scratch.assign(k * k, 0);
+  scratch.assign(static_cast<std::size_t>(k) * k, 0);
   for (std::size_t i = 0; i < n; ++i) {
     ++scratch[static_cast<std::size_t>(mat1[i] * k + mat2[i])];
   }

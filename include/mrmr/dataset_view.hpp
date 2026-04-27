@@ -175,7 +175,7 @@ dataset_view<T>::dataset_view(dataset<T> const &source, std::vector<std::size_t>
   // Sort instance indices for cache-friendly access (skip for small N)
   if (_instance_indices.size() > 10000) {
     if (_weights.empty()) {
-      std::sort(_instance_indices.begin(), _instance_indices.end());
+      std::ranges::sort(_instance_indices);
     } else {
       // Sort indices and weights together
       std::vector<std::size_t> order(_instance_indices.size());
@@ -288,7 +288,7 @@ dataset_view<T> dataset_view<T>::subspace(dataset<T> const &source, std::size_t 
   std::iota(all_attrs.begin(), all_attrs.end(), 0);
   std::shuffle(all_attrs.begin(), all_attrs.end(), gen);
   all_attrs.resize(num_features);
-  std::sort(all_attrs.begin(), all_attrs.end()); // keep attribute order
+  std::ranges::sort(all_attrs); // keep attribute order
 
   // All instances
   std::vector<std::size_t> all_instances(source.num_instances());

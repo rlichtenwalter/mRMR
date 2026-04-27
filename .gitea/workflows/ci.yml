@@ -88,7 +88,15 @@ jobs:
         run: cmake --preset=release
 
       - name: Run clang-tidy
-        run: clang-tidy -p build/release include/mrmr/*.hpp include/mrmr/detail/*.hpp tools/*.cpp test/*.cpp
+        # Lint source files only; HeaderFilterRegex in .clang-tidy
+        # propagates diagnostics back to public headers when those
+        # headers are transitively included by a source TU. Passing
+        # headers directly causes clang-tidy to fall back to "running
+        # without flags" (no compile_commands entry exists for headers
+        # alone), which breaks parsing for any C++20 syntax (requires,
+        # <=>, etc.) that wasn't tokenizable under clang-tidy's default
+        # C++17 fallback.
+        run: clang-tidy -p build/release tools/*.cpp test/*.cpp
 
   sanitize:
     # Debug build with AddressSanitizer + UndefinedBehaviorSanitizer.

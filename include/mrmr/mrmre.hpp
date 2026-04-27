@@ -88,7 +88,7 @@ build_consensus(std::vector<mrmre_solution> const &solutions, std::size_t num_at
 
   std::vector<std::size_t> ranking(num_attributes);
   std::iota(ranking.begin(), ranking.end(), 0);
-  std::sort(ranking.begin(), ranking.end(), [&](std::size_t a, std::size_t b) {
+  std::ranges::sort(ranking, [&](std::size_t a, std::size_t b) {
     if (frequencies[a] != frequencies[b]) {
       return frequencies[a] > frequencies[b];
     }
@@ -305,7 +305,8 @@ mrmre_result mrmre(DataSource const &data, std::size_t class_attribute_index,
     }
 
   } else if (method == mrmre_method::BOOTSTRAP) {
-    std::mt19937 gen(seed);
+    std::seed_seq seq{seed};
+    std::mt19937 gen(seq);
     result.solutions.reserve(solution_count);
 
     for (std::size_t s = 0; s < solution_count; ++s) {

@@ -31,8 +31,7 @@ dataset<unsigned char> make_test_dataset(std::size_t num_instances, std::size_t 
   for (auto &val : data) {
     val = dist(gen);
   }
-  return dataset<unsigned char>(data, num_instances, num_attributes, false, {},
-                                dataset<unsigned char>::ROUND);
+  return {data, num_instances, num_attributes, false, {}, dataset<unsigned char>::ROUND};
 }
 
 // Generate bootstrap indices (with replacement)
@@ -90,7 +89,7 @@ TEST_CASE("bench: histogram via sorted index indirection", "[!benchmark][view-ac
   auto ds = make_test_dataset(10000, 50, 4);
   auto indices_unsorted = make_bootstrap_indices(10000);
   auto indices_sorted = indices_unsorted;
-  std::sort(indices_sorted.begin(), indices_sorted.end());
+  std::ranges::sort(indices_sorted);
 
   // We can't access ds._data directly, so we benchmark the full MI overhead
   // by comparing sorted vs unsorted index patterns on raw array access.
@@ -100,10 +99,12 @@ TEST_CASE("bench: histogram via sorted index indirection", "[!benchmark][view-ac
   {
     std::mt19937 gen(42);
     std::uniform_int_distribution<unsigned char> dist(0, 3);
-    for (auto &v : col1)
+    for (auto &v : col1) {
       v = dist(gen);
-    for (auto &v : col2)
+    }
+    for (auto &v : col2) {
       v = dist(gen);
+    }
   }
 
   std::vector<std::size_t> scratch(16, 0);
@@ -123,8 +124,7 @@ TEST_CASE("bench: histogram via sorted index indirection", "[!benchmark][view-ac
   (Catch::Benchmark::Chronometer meter) {
     meter.measure([&] {
       scratch.assign(16, 0);
-      for (std::size_t i = 0; i < indices_sorted.size(); ++i) {
-        std::size_t idx = indices_sorted[i];
+      for (auto idx : indices_sorted) {
         ++scratch[static_cast<std::size_t>(col1[idx] * 4 + col2[idx])];
       }
       return scratch[0];
@@ -135,8 +135,7 @@ TEST_CASE("bench: histogram via sorted index indirection", "[!benchmark][view-ac
   (Catch::Benchmark::Chronometer meter) {
     meter.measure([&] {
       scratch.assign(16, 0);
-      for (std::size_t i = 0; i < indices_unsorted.size(); ++i) {
-        std::size_t idx = indices_unsorted[i];
+      for (auto idx : indices_unsorted) {
         ++scratch[static_cast<std::size_t>(col1[idx] * 4 + col2[idx])];
       }
       return scratch[0];
@@ -149,15 +148,17 @@ TEST_CASE("bench: sorted vs unsorted at 100K instances", "[!benchmark][view-acce
   {
     std::mt19937 gen(42);
     std::uniform_int_distribution<unsigned char> dist(0, 3);
-    for (auto &v : col1)
+    for (auto &v : col1) {
       v = dist(gen);
-    for (auto &v : col2)
+    }
+    for (auto &v : col2) {
       v = dist(gen);
+    }
   }
 
   auto indices_unsorted = make_bootstrap_indices(100000);
   auto indices_sorted = indices_unsorted;
-  std::sort(indices_sorted.begin(), indices_sorted.end());
+  std::ranges::sort(indices_sorted);
 
   std::vector<std::size_t> scratch(16, 0);
 
@@ -176,8 +177,7 @@ TEST_CASE("bench: sorted vs unsorted at 100K instances", "[!benchmark][view-acce
   (Catch::Benchmark::Chronometer meter) {
     meter.measure([&] {
       scratch.assign(16, 0);
-      for (std::size_t i = 0; i < indices_sorted.size(); ++i) {
-        std::size_t idx = indices_sorted[i];
+      for (auto idx : indices_sorted) {
         ++scratch[static_cast<std::size_t>(col1[idx] * 4 + col2[idx])];
       }
       return scratch[0];
@@ -188,8 +188,7 @@ TEST_CASE("bench: sorted vs unsorted at 100K instances", "[!benchmark][view-acce
   (Catch::Benchmark::Chronometer meter) {
     meter.measure([&] {
       scratch.assign(16, 0);
-      for (std::size_t i = 0; i < indices_unsorted.size(); ++i) {
-        std::size_t idx = indices_unsorted[i];
+      for (auto idx : indices_unsorted) {
         ++scratch[static_cast<std::size_t>(col1[idx] * 4 + col2[idx])];
       }
       return scratch[0];
@@ -203,12 +202,13 @@ TEST_CASE("bench: column materialization cost", "[!benchmark][view-access]") {
   {
     std::mt19937 gen(42);
     std::uniform_int_distribution<unsigned char> dist(0, 3);
-    for (auto &v : source_col)
+    for (auto &v : source_col) {
       v = dist(gen);
+    }
   }
 
   auto indices_sorted = make_bootstrap_indices(100000);
-  std::sort(indices_sorted.begin(), indices_sorted.end());
+  std::ranges::sort(indices_sorted);
 
   std::vector<unsigned char> materialized(100000);
 
@@ -226,7 +226,7 @@ TEST_CASE("bench: column materialization cost", "[!benchmark][view-access]") {
   (Catch::Benchmark::Chronometer meter) {
     auto to_sort = make_bootstrap_indices(100000);
     meter.measure([&] {
-      std::sort(to_sort.begin(), to_sort.end());
+      std::ranges::sort(to_sort);
       return to_sort[0];
     });
   };
@@ -238,14 +238,16 @@ TEST_CASE("bench: high cardinality impact", "[!benchmark][view-access]") {
   {
     std::mt19937 gen(42);
     std::uniform_int_distribution<unsigned char> dist(0, 49);
-    for (auto &v : col1)
+    for (auto &v : col1) {
       v = dist(gen);
-    for (auto &v : col2)
+    }
+    for (auto &v : col2) {
       v = dist(gen);
+    }
   }
 
   auto indices_sorted = make_bootstrap_indices(100000);
-  std::sort(indices_sorted.begin(), indices_sorted.end());
+  std::ranges::sort(indices_sorted);
 
   std::vector<std::size_t> scratch(2500, 0); // 50*50
 
@@ -264,8 +266,7 @@ TEST_CASE("bench: high cardinality impact", "[!benchmark][view-access]") {
   (Catch::Benchmark::Chronometer meter) {
     meter.measure([&] {
       scratch.assign(2500, 0);
-      for (std::size_t i = 0; i < indices_sorted.size(); ++i) {
-        std::size_t idx = indices_sorted[i];
+      for (auto idx : indices_sorted) {
         ++scratch[static_cast<std::size_t>(col1[idx] * 50 + col2[idx])];
       }
       return scratch[0];
