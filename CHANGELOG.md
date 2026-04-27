@@ -19,9 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
     and clears the way for opportunistic adoption of C++20 idioms
     (concepts, `std::span`, `std::bit_width`, etc.) at the next natural
     refactor point. README updated to reflect "C++20 compliant code base".
-  - `.clang-tidy` suppresses `performance-enum-size` and
-    `misc-use-internal-linkage`, matching `vcp`/`kdtree`. Both checks
-    shipped with clang-tidy 20.x and were never propagated to mRMR.
+  - `.clang-tidy` suppresses `performance-enum-size`,
+    `misc-use-internal-linkage`, and `modernize-concat-nested-namespaces`,
+    matching `vcp`. The first two are clang-tidy 20.x checks that were
+    never propagated to mRMR. The third is a C++17 modernizer that did
+    not fire under C++14 but does under C++20 (against the existing
+    `namespace mrmr { namespace detail { ... } }` patterns) — the
+    suppression preserves the current namespace style as an explicit
+    project choice.
   - CI `lint` job's `clang-tidy` invocation now also covers `test/*.cpp`
     so test code is held to the same lint contract as the library and
     CLI (matching `vcp` and `kdtree`).

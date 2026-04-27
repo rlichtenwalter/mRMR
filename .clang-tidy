@@ -8,6 +8,7 @@ Checks: >
   -modernize-use-nodiscard,
   -modernize-avoid-c-arrays,
   -modernize-type-traits,
+  -modernize-concat-nested-namespaces,
   performance-*,
   -performance-enum-size,
   readability-braces-around-statements,
