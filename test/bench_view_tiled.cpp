@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (C) 2018-2026 Ryan N. Lichtenwalter
+
 /*
 Benchmark: Tiled materialization vs sorted indirection for MI computation.
 
