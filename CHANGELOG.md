@@ -11,6 +11,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `check-json` pre-commit hook (commit stage), validates `CMakePresets.json`
   and any future JSON files at commit time. Closes a small gap flagged by
   `/standards-check` (`precommit.check_json` warning).
+- Sibling-alignment cleanup matching the conventions already in `vcp` and
+  `kdtree`:
+  - **C++ standard bumped to C++20** (`cxx_std_14` → `cxx_std_20` in
+    `CMakeLists.txt`). C++14 was a valid subset of C++20, so no source
+    changes were forced; the bump aligns the minimum standard with `vcp`
+    and clears the way for opportunistic adoption of C++20 idioms
+    (concepts, `std::span`, `std::bit_width`, etc.) at the next natural
+    refactor point. README updated to reflect "C++20 compliant code base".
+  - `.clang-tidy` suppresses `performance-enum-size`,
+    `misc-use-internal-linkage`, and `modernize-concat-nested-namespaces`,
+    matching `vcp`. The first two are clang-tidy 20.x checks that were
+    never propagated to mRMR. The third is a C++17 modernizer that did
+    not fire under C++14 but does under C++20 (against the existing
+    `namespace mrmr { namespace detail { ... } }` patterns) — the
+    suppression preserves the current namespace style as an explicit
+    project choice.
+  - C++20 modernizations applied across the library, CLI, and tests to
+    satisfy the active clang-tidy checks at the new standard:
+    - `std::sort(it, it)` -> `std::ranges::sort(range)` in
+      `dataset_view.hpp`, `mrmr.hpp`, `mrmre.hpp`, `test_mrmr.cpp`,
+      and the `bench_*` benchmarks (`modernize-use-ranges`).
+    - `std::log(2)` -> `std::numbers::ln2` in
+      `attribute_information.hpp` (`modernize-use-std-numbers`),
+      with `<numbers>` added to the include list.
+    - Index-counted `for (size_t i = 0; i < v.size(); ++i)` -> range-
+      based `for (auto x : v)` in the `bench_view_*` benchmarks
+      (`modernize-loop-convert`).
+    - `getopt`'s `option` array initialized with C++20 designated
+      initializers (`{.name = ..., .has_arg = ..., ...}`) in
+      `mrmr-cli.cpp` (`modernize-use-designated-initializers`).
+    - `dataset` constructor calls in benchmark factory functions use
+      braced-init-list returns (`modernize-return-braced-init-list`).
+    - Histogram bench functions cast one operand to `std::size_t`
+      before the `unsigned char * unsigned char` multiplication in
+      `bench_view_1m.cpp` and `bench_view_tiled.cpp`
+      (`bugprone-implicit-widening-of-multiplication-result`).
+    - Bootstrap RNG seeded via `std::seed_seq` in `mrmre.hpp` to
+      avoid the spurious `bugprone-narrowing-conversions` diagnostic
+      that fires on the direct `std::mt19937(seed)` call when `seed`
+      is `unsigned int` (`std::mt19937::result_type` is platform-
+      dependent and the check's display ("aka 'int'") is misleading;
+      seed_seq is the documented idiom for non-trivial seeding).
+  - CI `lint` job's `clang-tidy` invocation now covers `tools/*.cpp`
+    and `test/*.cpp` so test code is held to the same lint contract as
+    the library and CLI. Headers are no longer passed directly to
+    `clang-tidy`; the `HeaderFilterRegex` in `.clang-tidy` propagates
+    diagnostics back to public headers when those headers are
+    transitively included by a source TU. Direct header invocation
+    forced clang-tidy into a "running without flags" fallback (no
+    `compile_commands.json` entry exists for headers in isolation),
+    which broke parsing for any C++20 syntax (`requires`, `<=>`, etc.)
+    that wasn't tokenizable under the default C++17 fallback.
+  - CI `lint` job dropped the redundant `Setup Python` action, the
+    `pip install pre-commit` line, and the standalone `Check formatting`
+    step — clang-format is already enforced by the `quality` job's
+    pre-commit run, and the lint job only needs `clang-tidy` installed.
+    The result matches the `vcp`/`kdtree` lint job shape exactly.
+  - CI job order normalized to `build-and-test` → `quality` → `lint` →
+    `sanitize`, matching `vcp`/`kdtree`. Build success is the most
+    fundamental signal; lint/sanitize feedback is uninteresting if the
+    code does not compile, so the file reads top-down from "does this
+    build" to progressively more specialized validations. Jobs all run
+    in parallel anyway — this is purely about file readability.
+  - Pre-commit hooks now declare `stages: [pre-commit]` explicitly per
+    hook (in addition to the global `default_stages`), matching `vcp`
+    and `kdtree`. Redundant with the default but makes intent obvious.
+  - Release compile flags include `-DNDEBUG` explicitly, matching the
+    vcp pattern. CMake's default `Release` config supplies `-DNDEBUG`
+    on GCC/Clang already, so this is a no-op at compile time, but
+    spelling it out alongside `-O3 -fomit-frame-pointer` keeps the
+    intended Release contract visible in one place rather than split
+    between project flags and CMake defaults.
+  - `.gitignore` entries reordered to alphabetical (`build/`, `.cache/`,
+    `.claude/`, `**/.vscode`, `.nfs*`), matching `vcp` and `kdtree`.
+    Functionally equivalent (gitignore order is irrelevant) — purely
+    cosmetic alignment.
 - Branch protection hook (no-commit-to-branch) for main and develop
 - Detect-private-key pre-commit hook
 - New CI `sanitize` job that builds Debug with `MRMR_SANITIZE=ON` and runs the full ctest suite under ASan+UBSan on every PR.

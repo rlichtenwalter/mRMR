@@ -12,7 +12,7 @@ Improved mRMR is a re-implementation of the minimum redundancy maximum relevance
 - Support to output the result of parsing and discretization so that it can be verified and analyzed with external tools
 - Supports stream-based processing, and can operate equally well reading a data set from standard input, in a pipeline, from a named pipe, or with process substitution
 - Standard GNU getopt_long POSIX-compliant option processing, including full-featured `-h`/`--help` capability, informative error messages, graceful failure, and sensible defaults
-- High-quality C++14 compliant code base
+- High-quality C++20 compliant code base
 
 ## Building
 

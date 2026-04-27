@@ -161,22 +161,23 @@ int main(int argc, char *argv[]) try {
   std::size_t feature_count = 0;
   unsigned ensemble_seed = 42;
 
-  static struct option long_options[] = {{"delimiter", required_argument, nullptr, 't'},
-                                         {"class", required_argument, nullptr, 'c'},
-                                         {"method", required_argument, nullptr, 'm'},
-                                         {"discretize", required_argument, nullptr, 'd'},
-                                         {"ksg-k", required_argument, nullptr, OPT_KSG_K},
-                                         {"missing", required_argument, nullptr, OPT_MISSING},
-                                         {"verbosity", required_argument, nullptr, 'v'},
-                                         {"write-data", no_argument, nullptr, 'w'},
-                                         {"info", no_argument, nullptr, 'i'},
-                                         {"ensemble", required_argument, nullptr, 'e'},
-                                         {"solutions", required_argument, nullptr, 'n'},
-                                         {"features", required_argument, nullptr, 'k'},
-                                         {"seed", required_argument, nullptr, 's'},
-                                         {"help", no_argument, nullptr, 'h'},
-                                         {"version", no_argument, nullptr, 'V'},
-                                         {nullptr, 0, nullptr, 0}};
+  static struct option long_options[] = {
+      {.name = "delimiter", .has_arg = required_argument, .flag = nullptr, .val = 't'},
+      {.name = "class", .has_arg = required_argument, .flag = nullptr, .val = 'c'},
+      {.name = "method", .has_arg = required_argument, .flag = nullptr, .val = 'm'},
+      {.name = "discretize", .has_arg = required_argument, .flag = nullptr, .val = 'd'},
+      {.name = "ksg-k", .has_arg = required_argument, .flag = nullptr, .val = OPT_KSG_K},
+      {.name = "missing", .has_arg = required_argument, .flag = nullptr, .val = OPT_MISSING},
+      {.name = "verbosity", .has_arg = required_argument, .flag = nullptr, .val = 'v'},
+      {.name = "write-data", .has_arg = no_argument, .flag = nullptr, .val = 'w'},
+      {.name = "info", .has_arg = no_argument, .flag = nullptr, .val = 'i'},
+      {.name = "ensemble", .has_arg = required_argument, .flag = nullptr, .val = 'e'},
+      {.name = "solutions", .has_arg = required_argument, .flag = nullptr, .val = 'n'},
+      {.name = "features", .has_arg = required_argument, .flag = nullptr, .val = 'k'},
+      {.name = "seed", .has_arg = required_argument, .flag = nullptr, .val = 's'},
+      {.name = "help", .has_arg = no_argument, .flag = nullptr, .val = 'h'},
+      {.name = "version", .has_arg = no_argument, .flag = nullptr, .val = 'V'},
+      {.name = nullptr, .has_arg = 0, .flag = nullptr, .val = 0}};
 
   int c;
   int option_index = 0;

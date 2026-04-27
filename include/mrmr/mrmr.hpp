@@ -344,7 +344,7 @@ mrmr_return_type mrmr(DataSource const &data, std::size_t class_attribute_index,
   // Append useless features (zero-entropy attributes).
   // Useful attributes occupy ranks 1 through useful_indices.size(); useless follow.
   std::size_t useless_rank = useful_indices.size() + 1;
-  std::sort(useless.begin(), useless.end());
+  std::ranges::sort(useless);
   for (auto attribute_index : useless) {
     emit_rank(useless_rank++, attribute_index, data.attribute_name(attribute_index), 0, 0,
               -std::numeric_limits<double>::infinity());

@@ -23,7 +23,7 @@ target_include_directories(mrmr INTERFACE
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
-target_compile_features(mrmr INTERFACE cxx_std_14)
+target_compile_features(mrmr INTERFACE cxx_std_20)
 
 set(MRMR_PUBLIC_HEADERS
     include/mrmr/attribute_information.hpp
@@ -98,7 +98,7 @@ endif()
 
 target_compile_options(mrmr-cli PRIVATE
     ${MRMR_WARNING_FLAGS}
-    $<$<CONFIG:Release>:-O3 -fomit-frame-pointer>
+    $<$<CONFIG:Release>:-O3 -fomit-frame-pointer -DNDEBUG>
     $<$<CONFIG:Debug>:-Og -g -fno-omit-frame-pointer>
 )
 # Enable LTO via the CMake property rather than a raw -flto flag.

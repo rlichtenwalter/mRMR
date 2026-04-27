@@ -41,7 +41,7 @@ struct large_test_data {
       idx = idist(gen);
     }
     sorted_indices = unsorted_indices;
-    std::sort(sorted_indices.begin(), sorted_indices.end());
+    std::ranges::sort(sorted_indices);
   }
 
   unsigned char const *col(std::size_t c) const { return &columns[c * n]; }
@@ -49,7 +49,7 @@ struct large_test_data {
 
 std::size_t hist_direct(unsigned char const *c1, unsigned char const *c2, std::size_t n,
                         unsigned char k, std::vector<std::size_t> &scratch) {
-  scratch.assign(k * k, 0);
+  scratch.assign(static_cast<std::size_t>(k) * k, 0);
   for (std::size_t i = 0; i < n; ++i) {
     ++scratch[static_cast<std::size_t>(c1[i] * k + c2[i])];
   }
@@ -59,9 +59,8 @@ std::size_t hist_direct(unsigned char const *c1, unsigned char const *c2, std::s
 std::size_t hist_sorted_ind(unsigned char const *c1, unsigned char const *c2,
                             std::vector<std::size_t> const &indices, unsigned char k,
                             std::vector<std::size_t> &scratch) {
-  scratch.assign(k * k, 0);
-  for (std::size_t i = 0; i < indices.size(); ++i) {
-    std::size_t idx = indices[i];
+  scratch.assign(static_cast<std::size_t>(k) * k, 0);
+  for (auto idx : indices) {
     ++scratch[static_cast<std::size_t>(c1[idx] * k + c2[idx])];
   }
   return scratch[0];
@@ -242,7 +241,7 @@ TEST_CASE("bench: sort 1M indices", "[!benchmark][1m]") {
       idx = dist(gen);
     }
     meter.measure([&] {
-      std::sort(indices.begin(), indices.end());
+      std::ranges::sort(indices);
       return indices[0];
     });
   };

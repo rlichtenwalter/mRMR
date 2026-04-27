@@ -50,8 +50,7 @@ std::vector<unsigned char> generate_random_data(std::size_t num_instances,
 dataset<unsigned char> build_dataset(std::size_t num_instances, std::size_t num_attributes,
                                      unsigned char cardinality = 4, unsigned seed = 42) {
   auto data = generate_random_data(num_instances, num_attributes, cardinality, seed);
-  return dataset<unsigned char>(data, num_instances, num_attributes, false, {},
-                                dataset<unsigned char>::ROUND);
+  return {data, num_instances, num_attributes, false, {}, dataset<unsigned char>::ROUND};
 }
 
 // ============================================================
