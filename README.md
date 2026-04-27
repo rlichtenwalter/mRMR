@@ -221,4 +221,4 @@ Benchmarks are in `test/bench_view_access.cpp`, `test/bench_view_tiled.cpp`,
 
 ## License
 
-GPL-3.0
+BSD-3-Clause. See [LICENSE](LICENSE).

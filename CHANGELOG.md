@@ -106,6 +106,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   requires CMake 3.30 — outside our floor.
 
 ### Changed
+- **Relicensed from GPL-3.0 to BSD-3-Clause**, matching the `vcp` and
+  `kdtree` sibling repositories. `LICENSE` replaced with the BSD 3-Clause
+  text (`Copyright (c) 2018-2026, Ryan N. Lichtenwalter`); per-file GPL-3
+  boilerplate removed and replaced with a two-line
+  `SPDX-License-Identifier: BSD-3-Clause` + copyright header on every
+  source file (`include/`, `test/`, `tools/`); README "License" section
+  updated. Re-licensing is permitted because the copyright is held
+  entirely by the same author across all three repositories.
 - **API surface (technically breaking but unadvertised):** moved
   `delimiter_ctype.hpp` from `include/mrmr/` to `include/mrmr/detail/`.
   The class is a `std::ctype<char>` facet used internally by
