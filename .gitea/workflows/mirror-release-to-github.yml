@@ -1,0 +1,118 @@
+name: Mirror release to GitHub
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing Gitea release tag to mirror (test path)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mirror-release-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    env:
+      GH_REPO: rlichtenwalter/mRMR
+      GITEA_HOST: git.lichtenwalter.site
+      # GITEA_REPO must match the repo this workflow lives in: the auto-injected
+      # GITEA_TOKEN is scoped to the triggering repo (per Gitea Actions docs:
+      # "only has access to: The job's repository"), so dispatch-path API reads
+      # only succeed when GITEA_REPO names that repo.
+      GITEA_REPO: rlichten/mRMR
+      LOCAL_TZ: America/Denver
+    steps:
+      - name: Resolve release source
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          P_TAG: ${{ github.event.release.tag_name }}
+          P_NAME: ${{ github.event.release.name }}
+          P_BODY: ${{ github.event.release.body }}
+          P_PRERELEASE: ${{ github.event.release.prerelease }}
+          P_PUBLISHED: ${{ github.event.release.published_at }}
+          GITEA_AUTO_TOKEN: ${{ secrets.GITEA_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="$INPUT_TAG"
+            URL="https://${GITEA_HOST}/api/v1/repos/${GITEA_REPO}/releases/tags/${TAG}"
+            curl -fsSL --retry 3 --retry-delay 5 \
+              -H "Authorization: token $GITEA_AUTO_TOKEN" "$URL" \
+              -o "$RUNNER_TEMP/release.json"
+            jq -r '.tag_name'                              "$RUNNER_TEMP/release.json" > "$RUNNER_TEMP/tag"
+            jq -r '.name // .tag_name'                     "$RUNNER_TEMP/release.json" > "$RUNNER_TEMP/name"
+            jq -r '.body // ""'                            "$RUNNER_TEMP/release.json" > "$RUNNER_TEMP/body.md"
+            jq -r '.prerelease'                            "$RUNNER_TEMP/release.json" > "$RUNNER_TEMP/prerelease"
+            jq -r '.published_at // .created_at // empty'  "$RUNNER_TEMP/release.json" > "$RUNNER_TEMP/published"
+            if [ ! -s "$RUNNER_TEMP/published" ]; then
+              date -u +%Y-%m-%dT%H:%M:%SZ > "$RUNNER_TEMP/published"
+            fi
+          else
+            printf '%s' "$P_TAG"                  > "$RUNNER_TEMP/tag"
+            printf '%s' "${P_NAME:-$P_TAG}"       > "$RUNNER_TEMP/name"
+            printf '%s' "$P_BODY"                 > "$RUNNER_TEMP/body.md"
+            printf '%s' "$P_PRERELEASE"           > "$RUNNER_TEMP/prerelease"
+            printf '%s' "$P_PUBLISHED"            > "$RUNNER_TEMP/published"
+          fi
+          echo "Resolved tag: $(cat "$RUNNER_TEMP/tag")"
+
+      - name: Mirror to GitHub
+        env:
+          GH_TOKEN: ${{ secrets.GH_MIRROR_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG=$(cat "$RUNNER_TEMP/tag")
+          NAME=$(cat "$RUNNER_TEMP/name")
+          PRERELEASE=$(cat "$RUNNER_TEMP/prerelease")
+          PUBLISHED=$(cat "$RUNNER_TEMP/published")
+
+          ORIG_DATE=$(TZ="$LOCAL_TZ" date -d "$PUBLISHED" +%Y-%m-%d)
+          TODAY=$(TZ="$LOCAL_TZ" date +%Y-%m-%d)
+          if [ "$ORIG_DATE" != "$TODAY" ]; then
+            { echo "> Originally released $ORIG_DATE."; echo; cat "$RUNNER_TEMP/body.md"; } > "$RUNNER_TEMP/notes.md"
+          else
+            cp "$RUNNER_TEMP/body.md" "$RUNNER_TEMP/notes.md"
+          fi
+
+          STATUS=$(curl -s --retry 3 --retry-delay 5 -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GH_REPO}/releases/tags/${TAG}")
+          if [ "$STATUS" = "200" ]; then
+            echo "GitHub release $TAG already exists; skipping."
+            exit 0
+          elif [ "$STATUS" != "404" ]; then
+            echo "Unexpected status $STATUS checking for existing release; aborting."
+            exit 1
+          fi
+
+          PRERELEASE_BOOL=$([ "$PRERELEASE" = "true" ] && echo true || echo false)
+          jq -n \
+            --arg tag "$TAG" \
+            --arg name "$NAME" \
+            --rawfile body "$RUNNER_TEMP/notes.md" \
+            --argjson prerelease "$PRERELEASE_BOOL" \
+            '{tag_name: $tag, name: $name, body: $body, draft: false, prerelease: $prerelease}' \
+            > "$RUNNER_TEMP/payload.json"
+
+          STATUS=$(curl -s --retry 3 --retry-delay 5 -o "$RUNNER_TEMP/resp.json" -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            --data @"$RUNNER_TEMP/payload.json" \
+            "https://api.github.com/repos/${GH_REPO}/releases")
+          if [ "$STATUS" != "201" ]; then
+            echo "Failed to create GitHub release (HTTP $STATUS):"
+            cat "$RUNNER_TEMP/resp.json"
+            exit 1
+          fi
+          echo "Created: $(jq -r .html_url "$RUNNER_TEMP/resp.json")"
