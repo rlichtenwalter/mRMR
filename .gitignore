@@ -5,3 +5,8 @@ build/
 
 # NFS temporary files (appear when files are deleted while still open over NFS)
 .nfs*
+
+# Environment files
+.env
+.env.*
+!.env.example

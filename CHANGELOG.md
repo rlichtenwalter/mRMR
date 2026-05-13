@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 - Gitea Actions workflow `.gitea/workflows/mirror-release-to-github.yml` that mirrors Gitea releases to GitHub on every `release: published` event. Closes the gap left by Gitea's push mirror, which only mirrors git refs and not release metadata. Includes a `workflow_dispatch` path with a `tag` input for manual testing/debugging against any existing Gitea release. Idempotent (skip-if-exists). Prepends `> Originally released YYYY-MM-DD.` to the GitHub body only when the original Gitea release date differs from today, so real-time mirrors are unannotated and backfill-style runs are clearly marked.
 
+### Changed
+- Standards alignment: `.pre-commit-config.yaml` adds `args: [--fix=lf]` to the `mixed-line-ending` hook (resolves `precommit.mixed_line_ending_fix_lf`); `.gitignore` adds `.env` / `.env.*` glob with `!.env.example` allow-list (resolves `universal.gitignore_env_secrets`).
+
 ## [2.0.0] - 2026-04-27
 
 ### Added
