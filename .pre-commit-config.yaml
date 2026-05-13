@@ -28,6 +28,7 @@ repos:
         stages: [pre-commit]
       - id: mixed-line-ending
         stages: [pre-commit]
+        args: [--fix=lf]
       - id: no-commit-to-branch
         stages: [pre-commit]
         args: [--branch, main, --branch, develop]
