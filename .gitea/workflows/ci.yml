@@ -51,6 +51,87 @@ jobs:
       - name: Test
         run: ctest --preset=${{ matrix.preset }}
 
+  continuous:
+    # The KSG/continuous estimators live behind MRMR_HAS_CONTINUOUS, so the
+    # build-and-test matrix above never compiles a line of them — the option
+    # defaults to OFF. This job turns it on and runs the same ctest suite,
+    # which then also picks up the MRMR_CONTINUOUS-gated CLI tests in
+    # test/CMakeLists.txt and the KSG unit tests in test_mrmr.cpp.
+    #
+    # Both compilers, because the warning set that -Werror promotes differs
+    # between them and this code path has never been through either.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+        include:
+          - compiler: gcc
+            cc: gcc
+            cxx: g++
+          - compiler: clang
+            cc: clang
+            cxx: clang++
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Clang and lld
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang lld
+
+      - name: Configure (fetches the pinned kdtree release)
+        run: cmake --preset=continuous
+
+      - name: Build
+        run: cmake --build --preset=continuous
+
+      - name: Test
+        run: ctest --preset=continuous
+
+  install:
+    # Every other job consumes the headers through the library's
+    # BUILD_INTERFACE, i.e. straight out of include/, so none of them can
+    # observe an installation that is missing headers. This job installs to
+    # a staging prefix and then only ever looks at that prefix.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure and build
+        # Tests off: this job validates the installed artifact, and skipping
+        # them avoids fetching Catch2 for a build whose binaries go unused.
+        run: |
+          cmake --preset=release -DMRMR_BUILD_TESTS=OFF
+          cmake --build --preset=release
+
+      - name: Install to a staging prefix
+        run: cmake --install build/release --prefix "$PWD/stage"
+
+      - name: Assert every public header was installed
+        # Catches a header added to include/ but not to MRMR_PUBLIC_HEADERS.
+        # The compile step below only catches the ones reachable by include.
+        run: |
+          (cd include && find . -name '*.hpp' | sort) > "$RUNNER_TEMP/headers-source"
+          (cd stage/include && find . -name '*.hpp' | sort) > "$RUNNER_TEMP/headers-installed"
+          if ! diff -u "$RUNNER_TEMP/headers-source" "$RUNNER_TEMP/headers-installed"; then
+            echo "::error::installed header set differs from include/; update MRMR_PUBLIC_HEADERS in CMakeLists.txt"
+            exit 1
+          fi
+
+      - name: Compile a consumer against the installed tree only
+        # Resolves mrmr via find_package() against the staging prefix, with
+        # no path into the source tree, so a header that is declared but not
+        # installed fails here rather than in a downstream project.
+        run: |
+          cmake -S test/install-test -B build/install-test \
+            -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$PWD/stage"
+          cmake --build build/install-test
+          ./build/install-test/mrmr_install_consumer
+
   quality:
     runs-on: ubuntu-latest
     steps:

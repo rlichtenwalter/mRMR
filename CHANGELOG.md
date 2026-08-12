@@ -11,8 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Gitea Actions workflow that mirrors Gitea releases to GitHub, closing the push mirror's release-metadata gap
   - Manual backfill against any existing release via `workflow_dispatch` with a `tag` input
 
+- CI `continuous` job building and testing `-DMRMR_CONTINUOUS=ON` under GCC and Clang, so the KSG estimators are compiled and their existing tests run on every PR.
+- CI `install` job that installs to a staging prefix and compiles a consumer against it via `find_package(mrmr)`, catching header-set and package-config regressions the in-tree jobs cannot see.
+
 ### Changed
 - Standards alignment: the `mixed-line-ending` pre-commit hook now forces LF, and `.gitignore` ignores `.env` secret files while allowing `.env.example`
+
+### Fixed
+- `cmake --install` now installs all 13 public headers instead of 6, so the installed tree compiles; previously even `#include <mrmr/mrmr.hpp>` failed on a missing `mrmr/mi_policy.hpp`.
+- Pin the optional `kdtree` dependency to release `v3.0.0` from its public mirror instead of tracking a moving `develop` branch over SSH.
+- Two `-Wconversion` errors that blocked any `-DMRMR_CONTINUOUS=ON` build under `-Werror`.
 
 ## [2.0.0] - 2026-04-27
 

@@ -133,9 +133,12 @@ private:
 
   // Discrete storage: column-major unsigned char, one column per discrete attribute
   // _discrete_col_index[global_attr] = index into _discrete_cols, or SIZE_MAX if continuous
+  // discrete_value_type is named so the narrowing casts in mutual_information()
+  // track this declaration rather than restating the storage type.
+  using discrete_value_type = unsigned char;
   std::vector<std::size_t> _discrete_col_index;
-  std::vector<std::vector<unsigned char>> _discrete_cols;
-  std::vector<attribute_information<unsigned char>> _discrete_info;
+  std::vector<std::vector<discrete_value_type>> _discrete_cols;
+  std::vector<attribute_information<discrete_value_type>> _discrete_info;
 
   // Continuous storage: column-major double, one column per continuous attribute
   std::vector<std::size_t> _continuous_col_index;
@@ -344,8 +347,12 @@ inline double mixed_dataset::mutual_information(std::size_t attr1, std::size_t a
         std::size_t count = scratch[i * k2 + j];
         if (count != 0) {
           double jp = static_cast<double>(count) * inv_n;
-          double mi_val = info1.marginal_probability(i);
-          double mj_val = info2.marginal_probability(j);
+          // i and j are bounded by k1/k2, themselves num_values() of an
+          // attribute_information<discrete_value_type> whose domain is
+          // asserted to fit in [0, 255], so the narrowing cast is
+          // value-preserving. Mirrors the same cast in mi_policy.hpp.
+          double mi_val = info1.marginal_probability(static_cast<discrete_value_type>(i));
+          double mj_val = info2.marginal_probability(static_cast<discrete_value_type>(j));
           mi += jp * std::log2(jp / (mi_val * mj_val));
         }
       }

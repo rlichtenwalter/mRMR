@@ -1,4 +1,7 @@
 build/
+# Staging prefix used by the `install` CI job and by the same sequence run
+# locally (cmake --install build/release --prefix "$PWD/stage").
+stage/
 .cache/
 .claude/
 **/.vscode

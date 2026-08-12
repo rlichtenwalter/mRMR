@@ -25,12 +25,30 @@ target_include_directories(mrmr INTERFACE
 
 target_compile_features(mrmr INTERFACE cxx_std_20)
 
+# Every header under include/ is part of the installed interface, whether
+# or not it is a documented entry point: the entry points include them
+# transitively, so omitting one yields an installation that cannot be
+# compiled against. The `install` CI job asserts that this list and the
+# contents of include/ agree, since every other job consumes the headers
+# through BUILD_INTERFACE and so cannot observe an incomplete install.
+#
+# The continuous/mixed estimators are listed unconditionally even though
+# their bodies are guarded by MRMR_HAS_CONTINUOUS: mrmre.hpp includes
+# them when the option is on, and a consumer that enables continuous
+# support against an installation built without it must still find them.
 set(MRMR_PUBLIC_HEADERS
     include/mrmr/attribute_information.hpp
+    include/mrmr/continuous_dataset.hpp
     include/mrmr/dataset.hpp
+    include/mrmr/dataset_view.hpp
     include/mrmr/detail/delimiter_ctype.hpp
+    include/mrmr/ksg_estimator.hpp
     include/mrmr/matrix.hpp
+    include/mrmr/mi_policy.hpp
+    include/mrmr/missing.hpp
+    include/mrmr/mixed_dataset.hpp
     include/mrmr/mrmr.hpp
+    include/mrmr/mrmre.hpp
     include/mrmr/typedef.hpp
 )
 
@@ -41,13 +59,25 @@ target_sources(mrmr INTERFACE
 )
 
 # --- Continuous MI support (optional, fetches kdtree library automatically) ---
+#
+# kdtree is pinned to a released tag, not a branch: a moving `develop`
+# makes the build non-reproducible and lets an upstream change break this
+# project's CI with no commit here. Bump MRMR_KDTREE_VERSION deliberately.
+#
+# The source is the public GitHub mirror rather than the Gitea origin.
+# Gitea requires authentication even for public repositories, and the
+# `git@` SSH form additionally requires a key the CI runner does not have
+# — either would make the continuous build unfetchable in CI and for any
+# consumer outside the lab. The mirror is a ref-for-ref copy; tag v3.0.0
+# resolves to be3513ea on both remotes.
 option(MRMR_CONTINUOUS "Enable continuous/mixed MI estimators" OFF)
+set(MRMR_KDTREE_VERSION "v3.0.0" CACHE STRING "kdtree release tag used when MRMR_CONTINUOUS=ON")
 if(MRMR_CONTINUOUS)
     include(FetchContent)
     FetchContent_Declare(
         kdtree
-        GIT_REPOSITORY git@git.lichtenwalter.site:rlichten/kdtree.git
-        GIT_TAG        develop
+        GIT_REPOSITORY https://github.com/rlichtenwalter/kdtree.git
+        GIT_TAG        ${MRMR_KDTREE_VERSION}
     )
     FetchContent_MakeAvailable(kdtree)
     target_link_libraries(mrmr INTERFACE kdtree::kdtree)

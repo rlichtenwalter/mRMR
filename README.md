@@ -45,6 +45,19 @@ The `sanitize` CI job runs this combination on every PR.
 `-fno-sanitize-recover=all` makes every sanitizer diagnostic a hard
 error; Release builds are never affected.
 
+To build the optional continuous/mixed MI estimators (KSG), which fetch
+the pinned `kdtree` release:
+
+```bash
+cmake --preset=continuous
+cmake --build --preset=continuous
+ctest --preset=continuous
+```
+
+The `continuous` CI job runs this under both GCC and Clang on every PR.
+The `kdtree` release is pinned by `MRMR_KDTREE_VERSION`; override it to
+build against a different tag.
+
 ## Testing
 
 ```bash
@@ -82,6 +95,13 @@ Or via pkg-config:
 ```bash
 pkg-config --cflags mrmr
 ```
+
+The `install` CI job exercises exactly this path on every PR: it installs
+to a staging prefix, asserts the installed header set matches `include/`,
+and compiles `test/install-test` against the staging prefix alone. Note
+that an installation configured with `-DMRMR_CONTINUOUS=ON` exports a
+dependency on `kdtree::kdtree`, which `FetchContent` does not install —
+such an installation is not currently consumable via `find_package`.
 
 ## Design Notes: Dataset View Access Patterns
 
