@@ -8,194 +8,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
-- Gitea Actions workflow `.gitea/workflows/mirror-release-to-github.yml` that mirrors Gitea releases to GitHub on every `release: published` event. Closes the gap left by Gitea's push mirror, which only mirrors git refs and not release metadata. Includes a `workflow_dispatch` path with a `tag` input for manual testing/debugging against any existing Gitea release. Idempotent (skip-if-exists). Prepends `> Originally released YYYY-MM-DD.` to the GitHub body only when the original Gitea release date differs from today, so real-time mirrors are unannotated and backfill-style runs are clearly marked.
+- Gitea Actions workflow that mirrors Gitea releases to GitHub, closing the push mirror's release-metadata gap
+  - Manual backfill against any existing release via `workflow_dispatch` with a `tag` input
 
 ### Changed
-- Standards alignment: `.pre-commit-config.yaml` adds `args: [--fix=lf]` to the `mixed-line-ending` hook (resolves `precommit.mixed_line_ending_fix_lf`); `.gitignore` adds `.env` / `.env.*` glob with `!.env.example` allow-list (resolves `universal.gitignore_env_secrets`).
+- Standards alignment: the `mixed-line-ending` pre-commit hook now forces LF, and `.gitignore` covers `.env` secrets files
 
 ## [2.0.0] - 2026-04-27
 
 ### Added
-- `check-json` pre-commit hook (commit stage), validates `CMakePresets.json`
-  and any future JSON files at commit time. Closes a small gap flagged by
-  `/standards-check` (`precommit.check_json` warning).
+- `check-json` pre-commit hook validating `CMakePresets.json` and any future JSON files at commit time
 - Sibling-alignment cleanup matching the conventions already in `vcp` and
   `kdtree`:
-  - **C++ standard bumped to C++20** (`cxx_std_14` → `cxx_std_20` in
-    `CMakeLists.txt`). C++14 was a valid subset of C++20, so no source
-    changes were forced; the bump aligns the minimum standard with `vcp`
-    and clears the way for opportunistic adoption of C++20 idioms
-    (concepts, `std::span`, `std::bit_width`, etc.) at the next natural
-    refactor point. README updated to reflect "C++20 compliant code base".
-  - `.clang-tidy` suppresses `performance-enum-size`,
-    `misc-use-internal-linkage`, and `modernize-concat-nested-namespaces`,
-    matching `vcp`. The first two are clang-tidy 20.x checks that were
-    never propagated to mRMR. The third is a C++17 modernizer that did
-    not fire under C++14 but does under C++20 (against the existing
-    `namespace mrmr { namespace detail { ... } }` patterns) — the
-    suppression preserves the current namespace style as an explicit
-    project choice.
-  - C++20 modernizations applied across the library, CLI, and tests to
-    satisfy the active clang-tidy checks at the new standard:
-    - `std::sort(it, it)` -> `std::ranges::sort(range)` in
-      `dataset_view.hpp`, `mrmr.hpp`, `mrmre.hpp`, `test_mrmr.cpp`,
-      and the `bench_*` benchmarks (`modernize-use-ranges`).
-    - `std::log(2)` -> `std::numbers::ln2` in
-      `attribute_information.hpp` (`modernize-use-std-numbers`),
-      with `<numbers>` added to the include list.
-    - Index-counted `for (size_t i = 0; i < v.size(); ++i)` -> range-
-      based `for (auto x : v)` in the `bench_view_*` benchmarks
-      (`modernize-loop-convert`).
-    - `getopt`'s `option` array initialized with C++20 designated
-      initializers (`{.name = ..., .has_arg = ..., ...}`) in
-      `mrmr-cli.cpp` (`modernize-use-designated-initializers`).
-    - `dataset` constructor calls in benchmark factory functions use
-      braced-init-list returns (`modernize-return-braced-init-list`).
-    - Histogram bench functions cast one operand to `std::size_t`
-      before the `unsigned char * unsigned char` multiplication in
-      `bench_view_1m.cpp` and `bench_view_tiled.cpp`
-      (`bugprone-implicit-widening-of-multiplication-result`).
-    - Bootstrap RNG seeded via `std::seed_seq` in `mrmre.hpp` to
-      avoid the spurious `bugprone-narrowing-conversions` diagnostic
-      that fires on the direct `std::mt19937(seed)` call when `seed`
-      is `unsigned int` (`std::mt19937::result_type` is platform-
-      dependent and the check's display ("aka 'int'") is misleading;
-      seed_seq is the documented idiom for non-trivial seeding).
-  - CI `lint` job's `clang-tidy` invocation now covers `tools/*.cpp`
-    and `test/*.cpp` so test code is held to the same lint contract as
-    the library and CLI. Headers are no longer passed directly to
-    `clang-tidy`; the `HeaderFilterRegex` in `.clang-tidy` propagates
-    diagnostics back to public headers when those headers are
-    transitively included by a source TU. Direct header invocation
-    forced clang-tidy into a "running without flags" fallback (no
-    `compile_commands.json` entry exists for headers in isolation),
-    which broke parsing for any C++20 syntax (`requires`, `<=>`, etc.)
-    that wasn't tokenizable under the default C++17 fallback.
-  - CI `lint` job dropped the redundant `Setup Python` action, the
-    `pip install pre-commit` line, and the standalone `Check formatting`
-    step — clang-format is already enforced by the `quality` job's
-    pre-commit run, and the lint job only needs `clang-tidy` installed.
-    The result matches the `vcp`/`kdtree` lint job shape exactly.
-  - CI job order normalized to `build-and-test` → `quality` → `lint` →
-    `sanitize`, matching `vcp`/`kdtree`. Build success is the most
-    fundamental signal; lint/sanitize feedback is uninteresting if the
-    code does not compile, so the file reads top-down from "does this
-    build" to progressively more specialized validations. Jobs all run
-    in parallel anyway — this is purely about file readability.
-  - Pre-commit hooks now declare `stages: [pre-commit]` explicitly per
-    hook (in addition to the global `default_stages`), matching `vcp`
-    and `kdtree`. Redundant with the default but makes intent obvious.
-  - Release compile flags include `-DNDEBUG` explicitly, matching the
-    vcp pattern. CMake's default `Release` config supplies `-DNDEBUG`
-    on GCC/Clang already, so this is a no-op at compile time, but
-    spelling it out alongside `-O3 -fomit-frame-pointer` keeps the
-    intended Release contract visible in one place rather than split
-    between project flags and CMake defaults.
-  - `.gitignore` entries reordered to alphabetical (`build/`, `.cache/`,
-    `.claude/`, `**/.vscode`, `.nfs*`), matching `vcp` and `kdtree`.
-    Functionally equivalent (gitignore order is irrelevant) — purely
-    cosmetic alignment.
+  - **C++ standard bumped to C++20** (`cxx_std_14` → `cxx_std_20`); no source changes forced
+  - `.clang-tidy` suppresses `performance-enum-size`, `misc-use-internal-linkage`, and `modernize-concat-nested-namespaces`, matching `vcp`
+  - C++20 idioms adopted across library, CLI, tests, and benchmarks (ranges, `std::numbers`, designated initializers, `std::seed_seq` seeding) to satisfy the active clang-tidy checks
+  - CI `lint` job now runs `clang-tidy` on `tools/*.cpp` and `test/*.cpp` sources only; header diagnostics propagate via `HeaderFilterRegex`
+  - CI `lint` job dropped the redundant Python setup and standalone formatting step
+  - CI job order normalized to `build-and-test` → `quality` → `lint` → `sanitize`, matching `vcp`/`kdtree`
+  - Pre-commit hooks declare `stages: [pre-commit]` explicitly per hook
+  - Release compile flags include `-DNDEBUG` explicitly, matching the vcp pattern
+  - `.gitignore` entries reordered to alphabetical, matching `vcp` and `kdtree`
 - Branch protection hook (no-commit-to-branch) for main and develop
 - Detect-private-key pre-commit hook
 - New CI `sanitize` job that builds Debug with `MRMR_SANITIZE=ON` and runs the full ctest suite under ASan+UBSan on every PR.
-- `CMakePresets.json` at the repository root with three named configurations
-  (`release`, `debug`, `sanitize`) covering the meaningful build contexts
-  the project ships. Each preset has its own `binaryDir` under `build/<name>`,
-  so switching between configs no longer triggers a full rebuild — each tree
-  keeps its own warm cache. Build presets and test presets mirror configure
-  presets one-for-one; the `sanitize` test preset carries the
-  `ASAN_OPTIONS` / `UBSAN_OPTIONS` halt-on-error contract that was
-  previously duplicated inline in CI yaml. Preset file at version `3`
-  (CMake 3.21+, well within the 3.24 floor); `cmakeMinimumRequired`
-  declares 3.24 explicitly so older toolchains refuse to load it.
-  IDEs that support presets (VSCode CMake Tools, CLion, KDevelop, Qt
-  Creator) read the file directly. Schema string intentionally omitted:
-  CMake errors on `$schema` below preset version 8, and version 8
-  requires CMake 3.30 — outside our floor.
+- `CMakePresets.json` with `release`, `debug`, and `sanitize` configure/build/test presets, each with its own `build/<name>` tree so switching configs keeps a warm cache
 
 ### Changed
-- **Relicensed from GPL-3.0 to BSD-3-Clause**, matching the `vcp` and
-  `kdtree` sibling repositories. `LICENSE` replaced with the BSD 3-Clause
-  text (`Copyright (c) 2018-2026, Ryan N. Lichtenwalter`); per-file GPL-3
-  boilerplate removed and replaced with a two-line
-  `SPDX-License-Identifier: BSD-3-Clause` + copyright header on every
-  source file (`include/`, `test/`, `tools/`); README "License" section
-  updated. Re-licensing is permitted because the copyright is held
-  entirely by the same author across all three repositories.
-- **API surface (technically breaking but unadvertised):** moved
-  `delimiter_ctype.hpp` from `include/mrmr/` to `include/mrmr/detail/`.
-  The class is a `std::ctype<char>` facet used internally by
-  `dataset.hpp`, `continuous_dataset.hpp`, and `mixed_dataset.hpp` to
-  imbue input streams during file parsing — never instantiated directly
-  by user code, never documented in the README, and not referenced by
-  any test. Moving to `detail/` makes the public/internal split visible
-  in the layout and matches the `vcp::detail::` precedent in the sibling
-  library. Public headers update their `#include` to
-  `<mrmr/detail/delimiter_ctype.hpp>`. The install set (FILE_SET HEADERS
-  in `CMakeLists.txt`) is updated to ship the new path so existing
-  build setups that re-export the header (transitively) keep working;
-  any downstream that was directly including `<mrmr/delimiter_ctype.hpp>`
-  needs to update the path. The CI `lint` job's `clang-tidy` glob is
-  extended to `include/mrmr/*.hpp include/mrmr/detail/*.hpp tools/*.cpp`
-  so the moved header is still under static analysis.
-- CI `build-and-test` job extended with a Clang matrix entry; both GCC and Clang now build
-  the library, CLI, tests, and benchmarks, and run the full ctest suite at Release and Debug.
-  The library is header-only and implicitly promised Clang compatibility; the matrix makes
-  that promise enforceable on every PR. Matrix is `{compiler: gcc, clang} × {build_type: Release, Debug}`
-  with `fail-fast: false`.
-- Test and benchmark targets now compile with the same warning flags as the CLI tool
-  (`-Wall -Wextra -Werror -pedantic -Wno-unused-local-typedefs`), via a new shared
-  `MRMR_WARNING_FLAGS` CMake variable. Previously `test_mrmr` and the five benchmark targets
-  received only `${MRMR_SANITIZE_FLAGS}`, so warnings the CLI would error on could slide
-  through test or benchmark code silently. Adding a flag to `MRMR_WARNING_FLAGS` now lands
-  in every consumer build at once.
-- `MRMR_WARNING_FLAGS` expanded with `-Wconversion -Wsign-conversion
-  -Wshadow -Wnull-dereference -Wdouble-promotion -Wimplicit-fallthrough`
-  plus GCC-only `-Wlogical-op` and `-Wduplicated-cond`. Mechanical fallout:
-  - `attribute_information::num_values()` now `static_cast<T>(_pdf.size())`;
-    T is constrained to the [0, 255] domain by the upstream
-    `static_assert`, so the narrowing is value-preserving.
-  - `compute_mi()` now casts the loop indices `i` and `j` to
-    `value_type` at the `marginal_probability(...)` call sites.
-  - `delimiter_ctype::make_table()` casts `~space` to `mask` when
-    bit-clearing the table.
-  - Five `bench_view_*` benchmark histogram updates
-    (`++scratch[col1[i] * k + col2[i]]`) now cast the index
-    expression to `std::size_t` so the implicit `unsigned char ->
-    int -> size_t` chain becomes explicit.
-- Catch2's INTERFACE_INCLUDE_DIRECTORIES are reassigned to
-  INTERFACE_SYSTEM_INCLUDE_DIRECTORIES post-`FetchContent_MakeAvailable`,
-  so warnings from Catch2's own headers (notably Clang's
-  `-Wdouble-promotion` firing inside `catch_matchers_impl.hpp`'s
-  float-vs-double helpers) no longer break `-Werror` builds. CMake
-  3.25 added a `SYSTEM` keyword to `FetchContent_Declare` that would
-  do this declaratively; the project floor is 3.24 so we move the
-  property manually.
-- **BREAKING**: CMake minimum requirement raised from 3.21 to 3.24. CMake 3.24 introduced `cmake -B build --fresh`, a one-command cache clobber + reconfigure that eliminates the ad-hoc `rm -rf build/CMakeCache.txt` pattern. All current target distros ship CMake >= 3.24 in their default repositories (Rocky Linux 9 AppStream = 3.26.5, Rocky Linux 10 AppStream = 3.30.5, Ubuntu 24.04 LTS = 3.28.x), so the bump imposes no new constraint on contributors. Sibling C++ libraries (`vcp`, `kdtree`) receive the same bump in coordinated PRs.
-- `.gitea/workflows/ci.yml` now invokes presets instead of inline
-  `-DCMAKE_BUILD_TYPE=...` / `-DMRMR_SANITIZE=ON` flags. The
-  `build-and-test` matrix's `build_type: [Release, Debug]` becomes
-  `preset: [release, debug]`, the `lint` job uses `cmake --preset=release`
-  and `clang-tidy -p build/release` (compile_commands.json now exported
-  unconditionally from the root CMakeLists), and the `sanitize` job
-  uses `cmake --preset=sanitize` with `ctest --preset=sanitize`.
-  Sanitizer runtime options now live on the test preset, not the
-  workflow yaml.
-- `CMAKE_EXPORT_COMPILE_COMMANDS` is now set unconditionally at the top
-  of `CMakeLists.txt` (matching the sibling `vcp` and `kdtree`
-  conventions) so editor LSPs and the `lint` CI step both find a
-  compilation database without per-invocation `-D` flags.
+- **Relicensed from GPL-3.0 to BSD-3-Clause**, matching the `vcp` and `kdtree` sibling repositories
+  - Per-file GPL boilerplate replaced with `SPDX-License-Identifier` headers on every source file
+- **API surface (technically breaking but unadvertised):** moved `delimiter_ctype.hpp` from `include/mrmr/` to `include/mrmr/detail/`
+  - Downstreams including `<mrmr/delimiter_ctype.hpp>` directly must update the path
+- CI `build-and-test` job extended with a Clang matrix entry; GCC and Clang both build everything and run the full ctest suite at Release and Debug
+- Test and benchmark targets now compile with the same warning flags as the CLI tool, via a new shared `MRMR_WARNING_FLAGS` CMake variable
+- `MRMR_WARNING_FLAGS` expanded with `-Wconversion`, `-Wsign-conversion`, `-Wshadow`, and other stronger checks, with mechanical cast fixes across library and benchmarks
+- Catch2 headers are now treated as system includes, so warnings from Catch2's own code no longer break `-Werror` builds
+- **BREAKING**: CMake minimum requirement raised from 3.21 to 3.24; all current target distros ship CMake >= 3.24 in their default repositories
+- `.gitea/workflows/ci.yml` now invokes CMake presets instead of inline configure flags; sanitizer runtime options live on the `sanitize` test preset, not the workflow yaml
+- `CMAKE_EXPORT_COMPILE_COMMANDS` is now set unconditionally in `CMakeLists.txt`, so editor LSPs and the `lint` CI step both find a compilation database without per-invocation flags
 - `.gitignore` simplified: the `build-*/` glob is removed in favor of
   the existing `build/` rule, since presets place all per-config trees
   under `build/<name>/`.
-- `MRMR_SANITIZE` now enables AddressSanitizer **and** UndefinedBehaviorSanitizer (previously only ASan), applies to every built target (CLI tool, tests, benchmarks — previously only the CLI), and passes `-fno-sanitize-recover=all` so every sanitizer diagnostic is a hard error. Benchmarks drop `-O3` when the option is ON so diagnostics attribute to source lines.
+- `MRMR_SANITIZE` now enables ASan **and** UBSan on every built target (previously ASan on the CLI only), with every sanitizer diagnostic treated as a hard error
 - Update clang-format to v22.1.2 for fleet-wide consistency
 
 ### Fixed
 - CI clang-tidy compile database generation and bugprone-branch-clone false positive on option-parsing chains
 - Guard continuous-only CLI variables with MRMR_HAS_CONTINUOUS to prevent unused-variable warnings without -DMRMR_CONTINUOUS=ON
 - Resolve all clang-tidy warnings across headers, CLI, and tests; align CI lint config with local .clang-tidy
-- Skip the `no-commit-to-branch` pre-commit hook in CI `pre-commit` steps: the hook guards local commits to `main`/`develop` and fired spuriously when CI checked out one of those branches, failing the job despite no real commit
+- Skip the `no-commit-to-branch` pre-commit hook in CI, where it fired spuriously on checkouts of `main`/`develop`
 
 ## [1.0.0] - 2026-03-18
 
