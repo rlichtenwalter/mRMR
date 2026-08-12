@@ -10,8 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 - Gitea Actions workflow `.gitea/workflows/mirror-release-to-github.yml` that mirrors Gitea releases to GitHub on every `release: published` event. Closes the gap left by Gitea's push mirror, which only mirrors git refs and not release metadata. Includes a `workflow_dispatch` path with a `tag` input for manual testing/debugging against any existing Gitea release. Idempotent (skip-if-exists). Prepends `> Originally released YYYY-MM-DD.` to the GitHub body only when the original Gitea release date differs from today, so real-time mirrors are unannotated and backfill-style runs are clearly marked.
 
+- CI `continuous` job building and testing `-DMRMR_CONTINUOUS=ON` under GCC and Clang, so the KSG estimators are compiled and their existing tests run on every PR.
+- CI `install` job that installs to a staging prefix and compiles a consumer against it via `find_package(mrmr)`, catching header-set and package-config regressions the in-tree jobs cannot see.
+
 ### Changed
 - Standards alignment: `.pre-commit-config.yaml` adds `args: [--fix=lf]` to the `mixed-line-ending` hook (resolves `precommit.mixed_line_ending_fix_lf`); `.gitignore` adds `.env` / `.env.*` glob with `!.env.example` allow-list (resolves `universal.gitignore_env_secrets`).
+
+### Fixed
+- `cmake --install` now installs all 13 public headers instead of 6, so the installed tree compiles; previously even `#include <mrmr/mrmr.hpp>` failed on a missing `mrmr/mi_policy.hpp`.
+- Pin the optional `kdtree` dependency to release `v3.0.0` from its public mirror instead of tracking a moving `develop` branch over SSH.
+- Two `-Wconversion` errors that blocked any `-DMRMR_CONTINUOUS=ON` build under `-Werror`.
 
 ## [2.0.0] - 2026-04-27
 

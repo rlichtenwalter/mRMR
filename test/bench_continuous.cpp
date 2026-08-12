@@ -142,7 +142,7 @@ TEST_CASE("bench: mixed_dataset MI dispatch", "[!benchmark][continuous]") {
     std::mt19937 gen(42);
     std::vector<double> data(10000 * 3);
     for (std::size_t i = 0; i < 10000; ++i) {
-      data[i * 3 + 0] = (i % 4);
+      data[i * 3 + 0] = static_cast<double>(i % 4);
       data[i * 3 + 1] = std::normal_distribution<double>(data[i * 3 + 0], 1.0)(gen);
       data[i * 3 + 2] = std::normal_distribution<double>(0.0, 1.0)(gen);
     }

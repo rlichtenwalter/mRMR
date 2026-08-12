@@ -33,6 +33,16 @@
             "cacheVariables": {
                 "MRMR_SANITIZE": "ON"
             }
+        },
+        {
+            "name": "continuous",
+            "displayName": "Release + continuous/mixed MI (KSG)",
+            "description": "Optimized build with MRMR_CONTINUOUS=ON. Fetches the pinned kdtree release and compiles the KSG estimators, which no other preset instantiates. Used by the CI continuous job.",
+            "inherits": "release",
+            "binaryDir": "${sourceDir}/build/continuous",
+            "cacheVariables": {
+                "MRMR_CONTINUOUS": "ON"
+            }
         }
     ],
     "buildPresets": [
@@ -47,6 +57,10 @@
         {
             "name": "sanitize",
             "configurePreset": "sanitize"
+        },
+        {
+            "name": "continuous",
+            "configurePreset": "continuous"
         }
     ],
     "testPresets": [
@@ -73,6 +87,13 @@
             "environment": {
                 "ASAN_OPTIONS": "halt_on_error=1:detect_leaks=1:abort_on_error=1",
                 "UBSAN_OPTIONS": "halt_on_error=1:abort_on_error=1:print_stacktrace=1"
+            }
+        },
+        {
+            "name": "continuous",
+            "configurePreset": "continuous",
+            "output": {
+                "outputOnFailure": true
             }
         }
     ]
