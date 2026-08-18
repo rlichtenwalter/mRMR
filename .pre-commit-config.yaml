@@ -31,7 +31,7 @@ repos:
         args: [--fix=lf]
       - id: no-commit-to-branch
         stages: [pre-commit]
-        args: [--branch, main, --branch, develop]
+        args: [--branch, main]
 
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v22.1.2

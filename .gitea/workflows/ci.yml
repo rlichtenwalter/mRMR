@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [develop, main]
+    branches: [main]
   pull_request:
-    branches: [develop, main]
+    branches: [main]
 
 # Cancel older runs for the same ref when a new push/PR event arrives.
 # Saves CI cycles on rapid re-pushes.
