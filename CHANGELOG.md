@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 - Standards alignment: the `mixed-line-ending` pre-commit hook now forces LF, and `.gitignore` ignores `.env` secret files while allowing `.env.example`
+- Remove retired develop branch from CI triggers and pre-commit branch guard
 
 ### Fixed
 - `cmake --install` now installs all 13 public headers instead of 6, so the installed tree compiles; previously even `#include <mrmr/mrmr.hpp>` failed on a missing `mrmr/mi_policy.hpp`.
