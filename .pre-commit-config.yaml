@@ -4,7 +4,26 @@
 # behavior of running hooks at every stage.
 default_stages: [pre-commit]
 
+default_install_hook_types: [pre-commit, pre-push]
+
 repos:
+  # Markdown formatting. Prettier owns line width, list indentation and
+  # table alignment; markdownlint keeps the semantic rules (.markdownlint.jsonc
+  # inlines markdownlint's own `style/prettier` preset). Scoped with `types:`
+  # -- the hook defaults to every text file.
+  - repo: https://github.com/rbubley/mirrors-prettier
+    rev: v3.9.6
+    hooks:
+      - id: prettier
+        types: [markdown]
+        stages: [pre-commit]
+
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.23.2
+    hooks:
+      - id: markdownlint-cli2
+        stages: [pre-push]
+
   # --- Commit stage: formatting + file hygiene ---
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0

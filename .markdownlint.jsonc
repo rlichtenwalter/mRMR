@@ -1,0 +1,53 @@
+{
+  "default": true,
+
+  // --- prettier's preset, inlined verbatim ---------------------------------
+  // markdownlint ships `style/prettier`, which disables every rule prettier
+  // already owns. `extends` resolves as a FILESYSTEM PATH relative to this
+  // config, not as a node module, so a bare
+  // "extends": "markdownlint/style/prettier" is silently inert -- hence the
+  // inline. These 23 keys are the preset's own contents, in its own order;
+  // do not hand-edit them, and do not substitute a plausible-looking alias
+  // (`trailing-spaces` is not a rule name, and markdownlint accepts it in
+  // silence while MD009 stays on).
+  "blanks-around-fences": false,
+  "blanks-around-headings": false,
+  "blanks-around-lists": false,
+  "code-fence-style": false,
+  "emphasis-style": false,
+  "heading-start-left": false,
+  "heading-style": false,
+  "hr-style": false,
+  "line-length": false,
+  "list-indent": false,
+  "list-marker-space": false,
+  "no-blanks-blockquote": false,
+  "no-hard-tabs": false,
+  "no-missing-space-atx": false,
+  "no-missing-space-closed-atx": false,
+  "no-multiple-blanks": false,
+  "no-multiple-space-atx": false,
+  "no-multiple-space-blockquote": false,
+  "no-multiple-space-closed-atx": false,
+  "no-trailing-spaces": false,
+  "ol-prefix": false,
+  "strong-style": false,
+  "ul-indent": false,
+  // --- end preset -----------------------------------------------------------
+
+  // Also prettier's, though not in the preset: it normalises the fence and
+  // bullet characters and the blank line around a table.
+  "code-block-style": false,
+  "ul-style": false,
+  "blanks-around-tables": false,
+
+  // Prettier aligns table columns and pads the pipes; MD055/MD060 disagree
+  // with the result rather than with the author.
+  "table-pipe-style": false,
+  "table-column-style": false,
+
+  // Deliberate semantics, not formatting:
+  "first-line-heading": false,   // YAML frontmatter precedes the h1
+  "no-inline-html": false,       // <details>, <br>, <img> are used on purpose
+  "no-duplicate-heading": { "siblings_only": true }
+}

@@ -1,0 +1,10 @@
+{
+  "config": { "extends": ".markdownlint.jsonc" },
+  "globs": ["**/*.md"],
+  // Honour .gitignore. A hand-maintained ignore list is anchored at the repo
+  // root, so it misses `frontend/node_modules/` and `.venv/` -- directories
+  // that only exist AFTER a CI dependency install, which is why a green local
+  // run can still fail the build on vendored dependency READMEs.
+  "gitignore": true,
+  "ignores": ["**/node_modules/**", "**/.venv/**", "**/venv/**", "**/dist/**", "**/build/**", "**/.next/**"]
+}
