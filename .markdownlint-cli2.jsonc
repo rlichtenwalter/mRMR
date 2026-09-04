@@ -6,5 +6,15 @@
   // that only exist AFTER a CI dependency install, which is why a green local
   // run can still fail the build on vendored dependency READMEs.
   "gitignore": true,
-  "ignores": ["**/node_modules/**", "**/.venv/**", "**/venv/**", "**/dist/**", "**/build/**", "**/.next/**"]
+  // One per line: biome formats .jsonc too, and it breaks an array that
+  // overruns the line width. A single-line list fails `biome format` in
+  // every repo that runs it.
+  "ignores": [
+    "**/node_modules/**",
+    "**/.venv/**",
+    "**/venv/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/.next/**"
+  ]
 }

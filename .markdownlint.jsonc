@@ -47,7 +47,16 @@
   "table-column-style": false,
 
   // Deliberate semantics, not formatting:
-  "first-line-heading": false,   // YAML frontmatter precedes the h1
-  "no-inline-html": false,       // <details>, <br>, <img> are used on purpose
-  "no-duplicate-heading": { "siblings_only": true }
+  "first-line-heading": false, // YAML frontmatter precedes the h1
+  "no-inline-html": false, // <details>, <br>, <img> are used on purpose
+  "no-duplicate-heading": { "siblings_only": true },
+
+  // MD036 cannot tell a heading from a label. Measured over the eight repos
+  // it was first enabled on, its 138 findings split roughly in half: real
+  // headings ("Memory Retrieval Agent", "Backend (Python)") on one side, and
+  // `Label: value` lines on the other -- "Scoop Risk: LOW" five times in one
+  // file, "Goal: Fund initial development". Promoting the second kind fills
+  // the table of contents with junk, so the rule cannot be applied in bulk,
+  // and a rule that needs a human verdict per hit is not a gate.
+  "no-emphasis-as-heading": false
 }
