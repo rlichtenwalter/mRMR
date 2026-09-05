@@ -17,6 +17,14 @@ repos:
       - id: prettier
         types: [markdown]
         stages: [pre-commit]
+  # Secret scanning at the COMMIT stage: by push time a secret is already a
+  # commit object, in the reflog and in any backup, so removing it means a
+  # history rewrite rather than an amend.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      - id: gitleaks
+        stages: [pre-commit]
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
     rev: v0.23.2

@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   - Manual backfill against any existing release via `workflow_dispatch` with a `tag` input
 - CI `continuous` job building and testing `-DMRMR_CONTINUOUS=ON` under GCC and Clang, so the KSG estimators are compiled and their existing tests run on every PR.
 - CI `install` job that installs to a staging prefix and compiles a consumer against it via `find_package(mrmr)`, catching header-set and package-config regressions the in-tree jobs cannot see.
+- Scan for hardcoded secrets with gitleaks at the commit stage
 
 ### Changed
 
