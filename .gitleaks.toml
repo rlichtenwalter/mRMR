@@ -1,0 +1,23 @@
+[extend]
+useDefault = true
+
+# SHA-512/SHA-256/bcrypt/yescrypt crypt hashes. A password hash is not a key
+# file, so `detect-private-key` never saw these; they arrive in kickstart
+# files, `chpasswd -e` input, and LDIF `userPassword` lines.
+[[rules]]
+id = "crypt-password-hash"
+description = "Unix crypt password hash"
+regex = '''\$(1|5|6|y|2[aby])\$[A-Za-z0-9./$]{8,}\$?[A-Za-z0-9./]{20,}'''
+
+# Kickstart credentials, in every spelling the installer accepts -- including
+# `rootpw` with a bare (plaintext) argument, which has no flag to key on.
+[[rules]]
+id = "kickstart-password"
+description = "Kickstart root or user password"
+regex = '''(?m)^\s*(rootpw\s+(--iscrypted|--plaintext)\s+\S+|rootpw\s+[^-\s]\S*|user\s[^\n]*--password[= ]+\S+)'''
+
+# An [allowlist] block is added when a fixture is deliberately secret-shaped.
+# Set `regexTarget = "line"` on it whenever its regex is written against a whole
+# line: the default target is the matched *secret substring*, so a line-shaped
+# pattern is tested against a fragment and silently allowlists nothing.
+# gitleaks rejects an [allowlist] with no checks, so it is omitted while empty.
