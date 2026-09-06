@@ -199,3 +199,27 @@ jobs:
         # ASAN_OPTIONS / UBSAN_OPTIONS are set on the sanitize test preset
         # itself; listing them here would just duplicate the preset.
         run: ctest --preset=sanitize
+
+  # ==========================================================================
+  # Secret scan (tree). The commit-stage gitleaks hook runs
+  # `gitleaks git --staged`, and nothing is staged on a clean CI checkout --
+  # it scans zero bytes and exits 0, so it is NOT a backstop for a commit made
+  # with hooks bypassed. This scans the working tree instead. Run from the
+  # repository root: in `dir` mode gitleaks reports File exactly as given, so
+  # `dir .` keeps paths repo-relative and a `paths` allowlist anchored `^...`
+  # keeps matching. Version tracks .pre-commit-config.yaml's gitleaks rev.
+  # ==========================================================================
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install gitleaks
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v8.30.0/gitleaks_8.30.0_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      - name: Scan the tree for secrets
+        run: gitleaks dir . --redact --no-banner
