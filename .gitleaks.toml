@@ -1,23 +1,65 @@
 [extend]
 useDefault = true
 
-# SHA-512/SHA-256/bcrypt/yescrypt crypt hashes. A password hash is not a key
-# file, so `detect-private-key` never saw these; they arrive in kickstart
-# files, `chpasswd -e` input, and LDIF `userPassword` lines.
+# crypt(3) hashes: md5crypt, sha256/512crypt (with or without `rounds=N$`),
+# yescrypt/gost-yescrypt, scrypt, bcrypt. A password hash is not a key file,
+# so `detect-private-key` never saw these; they arrive in kickstart files,
+# `chpasswd -e` input, and LDIF `userPassword` lines.
+#
+# The groups are NON-CAPTURING deliberately: gitleaks takes the first capture
+# group as the finding's `Secret`, so an earlier `(1|5|6|y|2[aby])` made every
+# Secret the single character `6` -- and because the hook runs `--redact`, it
+# printed the hash it had just caught, with `Entropy` reading 0.000000.
 [[rules]]
 id = "crypt-password-hash"
-description = "Unix crypt password hash"
-regex = '''\$(1|5|6|y|2[aby])\$[A-Za-z0-9./$]{8,}\$?[A-Za-z0-9./]{20,}'''
+description = "Unix crypt(3) password hash"
+regex = '''\$(?:apr1|1|5|6|7|y|gy|2[abxy])\$(?:rounds=\d+\$)?(?:[A-Za-z0-9./]{1,64}\$){1,2}[A-Za-z0-9./]{20,}'''
+keywords = ["$apr1$", "$1$", "$5$", "$6$", "$7$", "$y$", "$gy$", "$2a$", "$2b$", "$2x$", "$2y$"]
 
-# Kickstart credentials, in every spelling the installer accepts -- including
-# `rootpw` with a bare (plaintext) argument, which has no flag to key on.
+# Kickstart `rootpw`/`sshpw` in any flag order, and `user ... --password`.
+# A bare `rootpw --lock` carries no credential and does not match. Also
+# catches OpenLDAP `slapd.conf` rootpw directives. gitleaks uses RE2: no
+# lookahead, hence the explicit alternation. `[ \t]` rather than `\s`,
+# because `\s` crosses newlines and lets one match swallow the next line.
 [[rules]]
 id = "kickstart-password"
-description = "Kickstart root or user password"
-regex = '''(?m)^\s*(rootpw\s+(--iscrypted|--plaintext)\s+\S+|rootpw\s+[^-\s]\S*|user\s[^\n]*--password[= ]+\S+)'''
+description = "Kickstart rootpw/sshpw/user password, or slapd.conf rootpw"
+regex = '''(?m)^[ \t]*(?:(?:rootpw|sshpw)(?:[ \t]+--\S+)*[ \t]+|user[ \t].*?--password[= ]+)([^-\s]\S*)'''
+secretGroup = 1
+keywords = ["rootpw", "sshpw", "--password"]
 
-# An [allowlist] block is added when a fixture is deliberately secret-shaped.
-# Set `regexTarget = "line"` on it whenever its regex is written against a whole
-# line: the default target is the matched *secret substring*, so a line-shaped
-# pattern is tested against a fragment and silently allowlists nothing.
-# gitleaks rejects an [allowlist] with no checks, so it is omitted while empty.
+# `gitleaks dir` walks the filesystem and does not honour `.gitignore`, so a
+# scan run after a dependency install or a test run descends into build trees
+# and re-finds fixtures a source-path allowlist excludes -- a `.pyc` is not the
+# `.py` the allowlist names. Ordering the CI scan before any install is the
+# real fix; this keeps a local `gitleaks dir .` usable too.
+[[allowlists]]
+description = "build artefacts and dependency trees, never source"
+paths = [
+  '''(?:^|/)\.venv/''',
+  '''(?:^|/)node_modules/''',
+  '''(?:^|/)__pycache__/''',
+  '''(?:^|/)\.pytest_cache/''',
+  '''(?:^|/)\.ruff_cache/''',
+  '''(?:^|/)target/''',
+]
+
+# Values whose SHAPE announces they are not credentials. Safe to exempt
+# generally: a real secret does not contain the word "placeholder", and is not
+# spelled `__TOKEN__` or `YOUR_TOKEN`. Matched against the finding's secret
+# rather than the line, so a real secret sharing a line with a placeholder is
+# still reported.
+[[allowlists]]
+description = "self-describing placeholders"
+regexes = [
+  '''(?i)placeholder''',
+  '''^__[A-Z0-9_]+__$''',
+  '''(?i)^your[-_][a-z0-9_]+$''',
+  '''(?i)^(?:changeme|example|dummy|sample|redacted|notasecret)''',
+]
+
+# Add a further `[[allowlists]]` block when a fixture is deliberately
+# secret-shaped. Note the plural form: `[[allowlists]]` replaced `[allowlist]`
+# in v8.25.0. Set `regexTarget = "line"` on it whenever its regex is written
+# against a whole line -- the default target is the finding's secret, not the
+# line it sits on.
