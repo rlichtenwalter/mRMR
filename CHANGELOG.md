@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+No changes yet.
+
+## [2.2.0] - 2026-09-08
+
 ### Added
 
 - Validate TOML syntax at the commit stage with the `check-toml` pre-commit hook
