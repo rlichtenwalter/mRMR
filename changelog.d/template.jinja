@@ -1,0 +1,7 @@
+{%- for category, val in definitions.items() if category in sections[""] -%}
+{{ "### " ~ val["name"] ~ "\n\n" }}
+{%- for text, _ in sections[""][category].items() | sort -%}
+{{ "- " ~ text ~ "\n" }}
+{%- endfor -%}
+{{ "\n" }}
+{%- endfor -%}
