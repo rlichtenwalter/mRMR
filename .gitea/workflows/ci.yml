@@ -151,7 +151,7 @@ jobs:
 
       - name: Install the minimum CMake from the packages cache
         run: |
-          uv tool install --default-index https://packages.lichtenwalter.site/pypi/simple/ "cmake==${CMAKE_MIN}"
+          uv tool install "cmake==${CMAKE_MIN}"
           echo "$(uv tool dir --bin)" >> "$GITHUB_PATH"
 
       - name: Check the tested CMake matches the declared minimum
@@ -190,10 +190,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - run: uvx --default-index https://packages.lichtenwalter.site/pypi/simple/ --with pre-commit==4.7.0 pre-commit run --all-files --hook-stage pre-commit
+      - run: uvx --with pre-commit==4.7.0 pre-commit run --all-files --hook-stage pre-commit
         env:
           SKIP: no-commit-to-branch
-      - run: uvx --default-index https://packages.lichtenwalter.site/pypi/simple/ --with pre-commit==4.7.0 pre-commit run --all-files --hook-stage pre-push
+      - run: uvx --with pre-commit==4.7.0 pre-commit run --all-files --hook-stage pre-push
         env:
           SKIP: no-commit-to-branch
 
