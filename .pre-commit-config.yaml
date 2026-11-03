@@ -53,6 +53,7 @@ repos:
         stages: [pre-commit]
       - id: check-merge-conflict
         stages: [pre-commit]
+        args: [--assume-in-merge]
       - id: check-case-conflict
         stages: [pre-commit]
       - id: mixed-line-ending

@@ -37,6 +37,10 @@ Hanchuan Peng, but benefits include:
 
 Requires CMake ≥ 3.24.
 
+The bundled `CMakePresets.json` needs CMake ≥ 3.25.
+`cmake --workflow --preset ci` configures, builds and tests the release build in
+one command.
+
 ```bash
 cmake -B build
 cmake --build build
