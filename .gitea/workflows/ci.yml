@@ -105,11 +105,11 @@ jobs:
         # Tests off: this job validates the installed artifact, and skipping
         # them avoids fetching Catch2 for a build whose binaries go unused.
         run: |
-          cmake --preset=release -DMRMR_BUILD_TESTS=OFF
-          cmake --build --preset=release
+          cmake --preset=install-check
+          cmake --build --preset=install-check
 
       - name: Install to a staging prefix
-        run: cmake --install build/release --prefix "$PWD/stage"
+        run: cmake --install build/install-check --prefix "$PWD/stage"
 
       - name: Assert every public header was installed
         # Catches a header added to include/ but not to MRMR_PUBLIC_HEADERS.

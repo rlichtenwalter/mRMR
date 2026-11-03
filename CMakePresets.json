@@ -1,8 +1,8 @@
 {
-    "version": 3,
+    "version": 6,
     "cmakeMinimumRequired": {
         "major": 3,
-        "minor": 24,
+        "minor": 25,
         "patch": 0
     },
     "configurePresets": [
@@ -43,6 +43,16 @@
             "cacheVariables": {
                 "MRMR_CONTINUOUS": "ON"
             }
+        },
+        {
+            "name": "install-check",
+            "displayName": "Release without tests",
+            "description": "Optimized build with MRMR_BUILD_TESTS=OFF, so Catch2 is not fetched. Used by the CI install job, which validates the installed artifact only.",
+            "inherits": "release",
+            "binaryDir": "${sourceDir}/build/install-check",
+            "cacheVariables": {
+                "MRMR_BUILD_TESTS": "OFF"
+            }
         }
     ],
     "buildPresets": [
@@ -61,6 +71,10 @@
         {
             "name": "continuous",
             "configurePreset": "continuous"
+        },
+        {
+            "name": "install-check",
+            "configurePreset": "install-check"
         }
     ],
     "testPresets": [
@@ -95,6 +109,27 @@
             "output": {
                 "outputOnFailure": true
             }
+        }
+    ],
+    "workflowPresets": [
+        {
+            "name": "ci",
+            "displayName": "CI (release)",
+            "description": "Configure, build and test the release preset in one command: cmake --workflow --preset ci.",
+            "steps": [
+                {
+                    "type": "configure",
+                    "name": "release"
+                },
+                {
+                    "type": "build",
+                    "name": "release"
+                },
+                {
+                    "type": "test",
+                    "name": "release"
+                }
+            ]
         }
     ]
 }
