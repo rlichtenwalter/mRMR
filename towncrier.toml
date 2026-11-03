@@ -1,0 +1,54 @@
+# Changelog fragments (D-20261030-85ea). A repo is in fragment mode iff this
+# file exists at its root. Canonical copy: claude-code-config
+# skills/git-workflow/templates/towncrier.toml; deployed by
+# scripts/changelog_convert.py. towncrier itself is never a repo dependency:
+# /release runs it pinned, as `uvx --from towncrier==26.9.0 towncrier ...`.
+[tool.towncrier]
+directory = "changelog.d"
+filename = "CHANGELOG.md"
+# The permanent placeholder itself is the anchor: towncrier inserts each new
+# `## [X.Y.Z] - date` section directly after it, and so below `## [Unreleased]`.
+# No marker comment is used on purpose: a comment would sit inside the
+# [Unreleased] section, where validate_release and the staging-window gate
+# read the section body and expect exactly the placeholder. towncrier splits at
+# the first occurrence, so the first `No changes yet.` line in CHANGELOG.md must
+# be the [Unreleased] body (inline mentions elsewhere are fine).
+start_string = "No changes yet.\n"
+title_format = "## [{version}] - {project_date}"
+# Fragments are orphans (`+slug.type.md`); no issue links are rendered.
+issue_format = ""
+underlines = ["", "", ""]
+# towncrier's built-in Markdown template emits two blank lines between
+# versions, which prettier rewrites. This one is prettier-clean and sorts
+# entries so the output does not depend on directory order.
+template = "changelog.d/template.jinja"
+
+[[tool.towncrier.type]]
+directory = "added"
+name = "Added"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "changed"
+name = "Changed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "deprecated"
+name = "Deprecated"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "removed"
+name = "Removed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "fixed"
+name = "Fixed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "security"
+name = "Security"
+showcontent = true
