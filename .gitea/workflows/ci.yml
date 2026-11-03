@@ -132,6 +132,60 @@ jobs:
           cmake --build build/install-test
           ./build/install-test/mrmr_install_consumer
 
+  cmake-min:
+    # Keeps cmake_minimum_required honest. Every other job uses the runner's
+    # CMake and the presets, which need CMake 3.25 (the developer interface),
+    # so none of them can notice the consumer floor creeping upward. This job
+    # runs the plain consumer commands -- no presets -- on the oldest CMake the
+    # project declares support for: configure, build, test, install, and a
+    # find_package() consumer against the installed tree.
+    #
+    # CMAKE_MIN is the exact version tested. Raising the floor in
+    # CMakeLists.txt means raising it here; the first step fails if they
+    # disagree.
+    runs-on: ubuntu-latest
+    env:
+      CMAKE_MIN: "3.24.0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install the minimum CMake from the packages cache
+        run: |
+          uv tool install --default-index https://packages.lichtenwalter.site/pypi/simple/ "cmake==${CMAKE_MIN}"
+          echo "$(uv tool dir --bin)" >> "$GITHUB_PATH"
+
+      - name: Check the tested CMake matches the declared minimum
+        run: |
+          cmake --version | head -n 1
+          test "$(cmake --version | sed -n '1s/^cmake version //p')" = "${CMAKE_MIN}"
+          declared="$(sed -n 's/^cmake_minimum_required(VERSION \([0-9.]*\)).*/\1/p' CMakeLists.txt | head -n 1)"
+          case "${CMAKE_MIN}" in
+            "${declared}" | "${declared}".*) ;;
+            *)
+              echo "::error::CMAKE_MIN ${CMAKE_MIN} does not match cmake_minimum_required(VERSION ${declared})"
+              exit 1
+              ;;
+          esac
+
+      - name: Configure (no presets)
+        run: cmake -S . -B build/cmake-min -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build/cmake-min
+
+      - name: Test
+        run: ctest --test-dir build/cmake-min --output-on-failure
+
+      - name: Install to a staging prefix
+        run: cmake --install build/cmake-min --prefix "$PWD/stage"
+
+      - name: Build and run a consumer against the installed tree only
+        run: |
+          cmake -S test/install-test -B build/install-test \
+            -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$PWD/stage"
+          cmake --build build/install-test
+          ./build/install-test/mrmr_install_consumer
+
   quality:
     runs-on: ubuntu-latest
     steps:
