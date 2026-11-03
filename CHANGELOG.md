@@ -200,7 +200,9 @@ No changes yet.
 
 - Initial release
 
-[Unreleased]: https://git.lichtenwalter.site/rlichten/mRMR/compare/v2.0.0...main
+[Unreleased]: https://git.lichtenwalter.site/rlichten/mRMR/compare/v2.2.0...main
+[2.2.0]: https://git.lichtenwalter.site/rlichten/mRMR/compare/v2.1.0...v2.2.0
+[2.1.0]: https://git.lichtenwalter.site/rlichten/mRMR/compare/v2.0.0...v2.1.0
 [2.0.0]: https://git.lichtenwalter.site/rlichten/mRMR/compare/v1.0.0...v2.0.0
 [1.0.0]: https://git.lichtenwalter.site/rlichten/mRMR/compare/v0.9.3...v1.0.0
 [0.9.3]: https://git.lichtenwalter.site/rlichten/mRMR/releases/tag/v0.9.3
