@@ -8,6 +8,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 No changes yet.
 
+## [2.2.1] - 2026-11-07
+
+### Added
+
+- CI exercises the plain build, install and find_package() flow on CMake 3.24.0.
+
+### Changed
+
+- Add `ci` workflow and `install-check` presets; presets need CMake 3.25.
+- Bump actions/checkout to v7
+- Bump markdownlint-cli2 pre-commit hook to v0.24.0
+- Bump pre-commit hooks
+- Bump pre-commit mirrors-clang-format to v23
+- Bump pre-commit-hooks to v6
+- CI secret scan now verifies the gitleaks binary's sha256 before extraction.
+- Install CI tools from PyPI directly; no private package index in tracked files
+- Pin actions/checkout to 3d3c42e
+- Switch the changelog to towncrier fragments
+
+### Fixed
+
+- Refresh the CHANGELOG version comparison links
+
 ## [2.2.0] - 2026-09-08
 
 ### Added
@@ -200,7 +223,8 @@ No changes yet.
 
 - Initial release
 
-[Unreleased]: https://github.com/rlichtenwalter/mRMR/compare/v2.2.0...main
+[Unreleased]: https://github.com/rlichtenwalter/mRMR/compare/v2.2.1...main
+[2.2.1]: https://github.com/rlichtenwalter/mRMR/compare/v2.2.0...v2.2.1
 [2.2.0]: https://github.com/rlichtenwalter/mRMR/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/rlichtenwalter/mRMR/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/rlichtenwalter/mRMR/compare/v1.0.0...v2.0.0
