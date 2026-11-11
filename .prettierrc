@@ -2,6 +2,7 @@
   "embeddedLanguageFormatting": "off",
   "overrides": [
     { "files": "*.md", "options": { "proseWrap": "always", "printWidth": 80 } },
-    { "files": "CHANGELOG.md", "options": { "proseWrap": "never" } }
+    { "files": "CHANGELOG.md", "options": { "proseWrap": "never" } },
+    { "files": "changelog.d/*.md", "options": { "proseWrap": "never" } }
   ]
 }
