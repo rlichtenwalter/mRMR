@@ -12,7 +12,7 @@ repos:
   # inlines markdownlint's own `style/prettier` preset). Scoped with `types:`
   # -- the hook defaults to every text file.
   - repo: https://github.com/rbubley/mirrors-prettier
-    rev: v3.9.10
+    rev: v3.10.1
     hooks:
       - id: prettier
         types: [markdown]
@@ -27,7 +27,7 @@ repos:
         stages: [pre-commit]
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.24.0
+    rev: v0.24.1
     hooks:
       - id: markdownlint-cli2
         stages: [pre-push]
