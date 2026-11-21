@@ -120,8 +120,8 @@ set(MRMR_WARNING_FLAGS
 
 # Clang's -flto produces LLVM bitcode that the default GNU `ld` cannot
 # read ("file format not recognized"). Route Clang link steps through
-# `lld`, which speaks bitcode natively. CI installs `lld` alongside
-# `clang`. GCC builds keep their default linker.
+# `lld`, which speaks bitcode natively. The cpp runner image provides
+# `clang` and `lld` in CI. GCC builds keep their default linker.
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     add_link_options(-fuse-ld=lld)
 endif()
