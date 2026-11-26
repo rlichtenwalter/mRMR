@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   mirror:
-    runs-on: ubuntu-latest
+    runs-on: base
     env:
       GH_REPO: rlichtenwalter/mRMR
       GITEA_HOST: git.lichtenwalter.site

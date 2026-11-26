@@ -15,7 +15,7 @@ concurrency:
 # Jobs that need cmake, clang, lld or Boost run on the `cpp` runner label,
 # which maps to the cpp runner image (ci-runner-image 3.0.0 moved cmake
 # out of the base image). Nothing is installed from a distro mirror at
-# job time.
+# job time. Everything else runs on the `base` label (ci-runner-image).
 jobs:
   build-and-test:
     runs-on: cpp
@@ -182,7 +182,7 @@ jobs:
           ./build/install-test/mrmr_install_consumer
 
   quality:
-    runs-on: ubuntu-latest
+    runs-on: base
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - run: uvx --with pre-commit==4.7.0 pre-commit run --all-files --hook-stage pre-commit
@@ -253,7 +253,7 @@ jobs:
   # ==========================================================================
   secret-scan:
     name: Secret Scan
-    runs-on: ubuntu-latest
+    runs-on: base
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
